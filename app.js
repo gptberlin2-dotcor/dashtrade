@@ -141,10 +141,27 @@ function fileToDataUrl(file) {
 }
 
 function deriveRr(entry, sl, tp, action) {
-  if (!entry || !sl || !tp || !action) return 0;
+  if (!entry || !sl || !tp) return 0;
+
   const isLong = action === 'Long' || action === 'Buy';
-  const risk = isLong ? entry - sl : sl - entry;
-  const reward = isLong ? tp - entry : entry - tp;
+  const isShort = action === 'Short' || action === 'Sell';
+
+  let risk = 0;
+  let reward = 0;
+
+  if (isLong) {
+    risk = entry - sl;
+    reward = tp - entry;
+  } else if (isShort) {
+    risk = sl - entry;
+    reward = entry - tp;
+  } else {
+    // Fallback when action has not been selected yet:
+    // compute based on absolute distance so RR can still auto-fill.
+    risk = Math.abs(entry - sl);
+    reward = Math.abs(tp - entry);
+  }
+
   if (risk <= 0) return 0;
   return reward / risk;
 }

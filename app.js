@@ -313,6 +313,15 @@ function toTrade(formData) {
   };
 }
 
+
+function prepareStartTradeForNewEntry() {
+  if (state.editId) return;
+  if (els.form.elements.no) els.form.elements.no.value = nextNo();
+  if (els.form.elements.result && !els.form.elements.result.value) els.form.elements.result.value = 'ON GOING';
+  if (els.form.elements.rr) els.form.elements.rr.dataset.manual = 'false';
+  autoFillRrFromSetup();
+}
+
 function updateChecklistPreview() {
   const data = new FormData(els.form);
   const checklist = {
@@ -330,6 +339,7 @@ function updateChecklistPreview() {
 function switchSection(id) {
   els.sections.forEach((sec) => sec.classList.toggle('active', sec.id === id));
   els.navButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.section === id));
+  if (id === 'start-trade') prepareStartTradeForNewEntry();
 }
 
 function fillForm(trade) {
@@ -442,7 +452,10 @@ function autoFillRrFromSetup() {
   rrField.value = rr > 0 ? `1:${rr.toFixed(2).replace(/\.00$/, '')}` : '';
 }
 
-els.navButtons.forEach((btn) => btn.addEventListener('click', () => switchSection(btn.dataset.section)));
+els.navButtons.forEach((btn) => btn.addEventListener('click', () => {
+  if (btn.dataset.section === 'start-trade') state.editId = null;
+  switchSection(btn.dataset.section);
+}));
 
 els.form.addEventListener('submit', (event) => {
   event.preventDefault();

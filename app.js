@@ -430,23 +430,27 @@ function showDetail(trade) {
     </tbody></table></div>
 
     <h4>Psychology / Execution Review</h4>
-    <ul>
-      <li>Emotion: ${trade.psychology?.emotion || '-'}</li>
-      <li>Confidence: ${trade.psychology?.confidence ?? '-'}</li>
-      <li>Discipline: ${trade.psychology?.discipline || '-'}</li>
-    </ul>
+    <div class="table-wrap"><table><tbody>
+      ${[
+        ['Emotion', trade.psychology?.emotion || '-'],
+        ['Confidence', trade.psychology?.confidence ?? '-'],
+        ['Discipline', trade.psychology?.discipline || '-'],
+      ].map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}
+    </tbody></table></div>
 
     <h4>Setup Validation Checklist</h4>
-    <ul>
-      <li>RSI: ${c.rsi ? 'Checked' : 'Unchecked'}</li>
-      <li>MACD: ${c.macd ? 'Checked' : 'Unchecked'}</li>
-      <li>Structure: ${c.structure ? 'Checked' : 'Unchecked'}</li>
-      <li>Support/Resistance: ${c.supportResistance ? 'Checked' : 'Unchecked'}</li>
-      <li>Liquidity: ${c.liquidity ? 'Checked' : 'Unchecked'}</li>
-      <li>Volume: ${c.volume ? 'Checked' : 'Unchecked'}</li>
-      <li>Total checklist score: ${c.score ?? 0}/6</li>
-      <li>Setup rating: ${c.rating ?? 'Invalid'}</li>
-    </ul>
+    <div class="table-wrap"><table><tbody>
+      ${[
+        ['RSI', c.rsi ? '✅' : '❌'],
+        ['MACD', c.macd ? '✅' : '❌'],
+        ['Structure', c.structure ? '✅' : '❌'],
+        ['Support/Resistance', c.supportResistance ? '✅' : '❌'],
+        ['Liquidity', c.liquidity ? '✅' : '❌'],
+        ['Volume', c.volume ? '✅' : '❌'],
+        ['Total checklist score', `${c.score ?? 0}/6`],
+        ['Setup rating', c.rating ?? 'Invalid'],
+      ].map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}
+    </tbody></table></div>
   `;
   els.detailModal.showModal();
 }

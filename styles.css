@@ -242,7 +242,7 @@ button.danger {
   border-radius: .75rem;
   min-height: 74px;
   padding: .75rem .85rem;
-  background: #0d1528;
+  background: #0b0b0b;
   display: flex;
   align-items: center;
   gap: .85rem;
@@ -253,13 +253,13 @@ button.danger {
 .upload-dropzone:hover,
 .upload-dropzone:focus {
   border-color: #5e6b85;
-  background: #101c34;
+  background: #121212;
   outline: none;
 }
 
 .upload-dropzone.drag-over {
-  border-color: #93c5fd;
-  background: #122440;
+  border-color: #5a5a5a;
+  background: #151515;
 }
 
 .upload-icon {
@@ -302,23 +302,6 @@ button.danger {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.screenshot-preview-wrap {
-  border: 1px dashed #3a3a3a;
-  border-radius: .55rem;
-  min-height: 80px;
-  padding: .5rem;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  background: #0b0b0b;
-}
-#screenshot-preview {
-  max-width: 180px;
-  max-height: 140px;
-  object-fit: cover;
-  border: 1px solid #3a3a3a;
-  border-radius: .5rem;
 }
 
 dialog {

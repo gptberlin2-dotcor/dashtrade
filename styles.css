@@ -224,6 +224,24 @@ button.danger {
 .action-short { color: #ef4444 !important; }
 .muted { color: var(--muted); }
 
+.screenshot-preview-wrap {
+  border: 1px dashed #3a3a3a;
+  border-radius: .55rem;
+  min-height: 80px;
+  padding: .5rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  background: #0b0b0b;
+}
+#screenshot-preview {
+  max-width: 180px;
+  max-height: 140px;
+  object-fit: cover;
+  border: 1px solid #3a3a3a;
+  border-radius: .5rem;
+}
+
 dialog {
   width: min(980px, 95vw);
   border: none;

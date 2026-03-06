@@ -25,6 +25,8 @@ const els = {
   calcLoss: document.getElementById('calc-loss'),
   calcProfit: document.getElementById('calc-profit'),
   calcReset: document.getElementById('calc-reset'),
+  screenshotFile: document.getElementById('screenshot-file'),
+  screenshotPreview: document.getElementById('screenshot-preview'),
 };
 
 function loadTrades() {
@@ -99,6 +101,28 @@ function normalizeLeverage(value) {
   const parsed = safeNumber(numericPart);
   if (!parsed) return '';
   return `x${parsed}`;
+}
+
+
+function setScreenshotPreview(value) {
+  if (!els.screenshotPreview) return;
+  const src = String(value || '').trim();
+  if (!src) {
+    els.screenshotPreview.hidden = true;
+    els.screenshotPreview.removeAttribute('src');
+    return;
+  }
+  els.screenshotPreview.src = src;
+  els.screenshotPreview.hidden = false;
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Failed to read image file'));
+    reader.readAsDataURL(file);
+  });
 }
 
 function deriveRr(entry, sl, tp, action) {
@@ -323,7 +347,11 @@ function fillForm(trade) {
     if (field) field.checked = !!checks[key];
   });
 
+  setScreenshotPreview(trade.screenshot);
+
   state.editId = trade.id;
+  if (els.form.elements.rr) els.form.elements.rr.dataset.manual = 'true';
+  autoFillRrFromSetup();
   updateChecklistPreview();
   switchSection('start-trade');
 }
@@ -382,6 +410,21 @@ function runCalculator() {
   els.calcProfit.textContent = formatCurrency(balanceProfit);
 }
 
+function autoFillRrFromSetup() {
+  const rrField = els.form.elements.rr;
+  const action = String(els.form.elements.action?.value || '').trim();
+  const entry = safeNumber(els.form.elements.entry?.value);
+  const sl = safeNumber(els.form.elements.sl?.value);
+  const tp = safeNumber(els.form.elements.tp?.value);
+
+  if (!rrField) return;
+  const isManual = rrField.dataset.manual === 'true';
+  if (isManual) return;
+
+  const rr = deriveRr(entry, sl, tp, action);
+  rrField.value = rr > 0 ? `1:${rr.toFixed(2).replace(/\.00$/, '')}` : '';
+}
+
 els.navButtons.forEach((btn) => btn.addEventListener('click', () => switchSection(btn.dataset.section)));
 
 els.form.addEventListener('submit', (event) => {
@@ -395,6 +438,9 @@ els.form.addEventListener('submit', (event) => {
   saveTrades();
   state.editId = null;
   els.form.reset();
+  if (els.screenshotFile) els.screenshotFile.value = '';
+  setScreenshotPreview('');
+  if (els.form.elements.rr) els.form.elements.rr.dataset.manual = 'false';
   renderAll();
   updateChecklistPreview();
   switchSection('trade-journal');
@@ -404,13 +450,57 @@ els.form.addEventListener('reset', () => {
   state.editId = null;
   setTimeout(() => {
     els.form.elements.no.value = nextNo();
+    if (els.screenshotFile) els.screenshotFile.value = '';
+    setScreenshotPreview('');
     if (els.form.elements.result) els.form.elements.result.value = 'ON GOING';
+    if (els.form.elements.rr) els.form.elements.rr.dataset.manual = 'false';
+    autoFillRrFromSetup();
     updateChecklistPreview();
   }, 0);
 });
 
-els.form.addEventListener('change', updateChecklistPreview);
-els.form.addEventListener('input', updateChecklistPreview);
+els.form.addEventListener('change', (event) => {
+  updateChecklistPreview();
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (['entry', 'sl', 'tp', 'action'].includes(target.getAttribute('name') || '')) autoFillRrFromSetup();
+});
+
+els.form.addEventListener('input', (event) => {
+  updateChecklistPreview();
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+
+  const name = target.getAttribute('name') || '';
+  if (name === 'rr') {
+    const rrField = els.form.elements.rr;
+    if (rrField) rrField.dataset.manual = rrField.value.trim() ? 'true' : 'false';
+    if (!rrField.value.trim()) autoFillRrFromSetup();
+    return;
+  }
+
+  if (['entry', 'sl', 'tp', 'action'].includes(name)) autoFillRrFromSetup();
+});
+
+els.form.elements.screenshot?.addEventListener('input', (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  setScreenshotPreview(target.value);
+});
+
+els.screenshotFile?.addEventListener('change', async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  const file = target.files?.[0];
+  if (!file) return;
+  try {
+    const dataUrl = await fileToDataUrl(file);
+    if (els.form.elements.screenshot) els.form.elements.screenshot.value = dataUrl;
+    setScreenshotPreview(dataUrl);
+  } catch (err) {
+    console.error(err);
+  }
+});
 
 els.journalBody.addEventListener('click', (event) => {
   const target = event.target;
@@ -477,5 +567,8 @@ els.calcReset.addEventListener('click', () => {
 
 renderAll();
 if (els.form.elements.result && !els.form.elements.result.value) els.form.elements.result.value = 'ON GOING';
+if (els.form.elements.rr) els.form.elements.rr.dataset.manual = 'false';
+autoFillRrFromSetup();
+setScreenshotPreview(els.form.elements.screenshot?.value || '');
 updateChecklistPreview();
 runCalculator();

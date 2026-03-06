@@ -319,7 +319,7 @@ function prepareStartTradeForNewEntry() {
   if (els.form.elements.no) els.form.elements.no.value = nextNo();
   if (els.form.elements.result && !els.form.elements.result.value) els.form.elements.result.value = 'ON GOING';
   if (els.form.elements.rr) els.form.elements.rr.dataset.manual = 'false';
-  autoFillRrFromSetup();
+  autoFillRrFromSetup({ force: true });
 }
 
 function updateChecklistPreview() {
@@ -378,7 +378,7 @@ function fillForm(trade) {
 
   state.editId = trade.id;
   if (els.form.elements.rr) els.form.elements.rr.dataset.manual = 'true';
-  autoFillRrFromSetup();
+  autoFillRrFromSetup({ force: true });
   updateChecklistPreview();
   switchSection('start-trade');
 }
@@ -437,7 +437,7 @@ function runCalculator() {
   els.calcProfit.textContent = formatCurrency(balanceProfit);
 }
 
-function autoFillRrFromSetup() {
+function autoFillRrFromSetup(options = {}) {
   const rrField = els.form.elements.rr;
   const action = String(els.form.elements.action?.value || '').trim();
   const entry = safeNumber(els.form.elements.entry?.value);
@@ -446,7 +446,7 @@ function autoFillRrFromSetup() {
 
   if (!rrField) return;
   const isManual = rrField.dataset.manual === 'true';
-  if (isManual) return;
+  if (isManual && !options.force) return;
 
   const rr = deriveRr(entry, sl, tp, action);
   rrField.value = rr > 0 ? `1:${rr.toFixed(2).replace(/\.00$/, '')}` : '';
@@ -486,7 +486,7 @@ els.form.addEventListener('reset', () => {
     setUploadFileChip('');
     if (els.form.elements.result) els.form.elements.result.value = 'ON GOING';
     if (els.form.elements.rr) els.form.elements.rr.dataset.manual = 'false';
-    autoFillRrFromSetup();
+    autoFillRrFromSetup({ force: true });
     updateChecklistPreview();
   }, 0);
 });
@@ -495,7 +495,7 @@ els.form.addEventListener('change', (event) => {
   updateChecklistPreview();
   const target = event.target;
   if (!(target instanceof HTMLElement)) return;
-  if (['entry', 'sl', 'tp', 'action'].includes(target.getAttribute('name') || '')) autoFillRrFromSetup();
+  if (['entry', 'sl', 'tp', 'action'].includes(target.getAttribute('name') || '')) autoFillRrFromSetup({ force: true });
 });
 
 els.form.addEventListener('input', (event) => {
@@ -511,7 +511,7 @@ els.form.addEventListener('input', (event) => {
     return;
   }
 
-  if (['entry', 'sl', 'tp', 'action'].includes(name)) autoFillRrFromSetup();
+  if (['entry', 'sl', 'tp', 'action'].includes(name)) autoFillRrFromSetup({ force: true });
 });
 
 els.form.elements.screenshot?.addEventListener('input', (event) => {
@@ -626,7 +626,7 @@ els.calcReset.addEventListener('click', () => {
 renderAll();
 if (els.form.elements.result && !els.form.elements.result.value) els.form.elements.result.value = 'ON GOING';
 if (els.form.elements.rr) els.form.elements.rr.dataset.manual = 'false';
-autoFillRrFromSetup();
+autoFillRrFromSetup({ force: true });
 setScreenshotPreview(els.form.elements.screenshot?.value || '');
 setUploadFileChip('');
 updateChecklistPreview();

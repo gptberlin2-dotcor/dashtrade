@@ -143,7 +143,7 @@ function fileToDataUrl(file) {
 
 function normalizeScreenshotSrc(src) {
   const value = String(src || '').trim();
-if (!value) return '';
+  if (!value) return '';
 
   // Normalize malformed image data URLs that miss ";base64,"
   if (value.startsWith('data:image/') && !value.includes(';base64,')) {
@@ -154,20 +154,6 @@ if (!value) return '';
   return value;
 }
 
-function openScreenshotViewer(src) {
-  const normalized = normalizeScreenshotSrc(src);
-  if (!normalized) return;
-
-  if (!normalized.startsWith('data:image/')) {
-    window.open(normalized, '_blank', 'noopener');
-    return;
-  }
-
-  const win = window.open('', '_blank', 'noopener');
-  if (!win) return;
-  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Screenshot Viewer</title><style>body{margin:0;background:#0b0b0b;display:grid;place-items:center;min-height:100vh}img{max-width:100vw;max-height:100vh;object-fit:contain}</style></head><body><img src="${normalized}" alt="trade screenshot"/></body></html>`);
-  win.document.close();
-}
 
 function deriveRr(entry, sl, tp, action) {
   if (!entry || !sl || !tp) return 0;
@@ -269,7 +255,7 @@ function renderJournal() {
         </select>
       </td>
       <td><button type="button" data-action="update-close" data-id="${trade.id}">Save</button></td>
-      <td>${trade.screenshot ? '<button type="button" data-action="view-screenshot" data-id="' + trade.id + '">view</button>' : '-'}</td>
+      <td>${trade.screenshot ? 'Uploaded' : '-'}</td>
       <td title="${escapeHtml(trade.notes || '')}">${escapeHtml(shortNotes)}</td>
       <td><button type="button" data-action="detail" data-id="${trade.id}">(detail)</button></td>
       <td><button type="button" data-action="edit" data-id="${trade.id}">Edit</button></td>
@@ -431,13 +417,15 @@ function fillForm(trade) {
 
 function showDetail(trade) {
   const c = trade.checklist || {};
+  const screenshotSrc = normalizeScreenshotSrc(trade.screenshot);
   els.detailContent.innerHTML = `
+    ${screenshotSrc ? `<div class="detail-image-wrap"><img src="${screenshotSrc}" alt="Trade screenshot" class="detail-image" /></div>` : ''}
     <h4>Main Trade Summary</h4>
     <div class="table-wrap"><table><tbody>
       ${[
         ['No', trade.no], ['Date', trade.date], ['Pair', trade.pair], ['Action', trade.action], ['TF', trade.tf], ['Setup Type', trade.setupType],
         ['Market Context', trade.marketContext], ['Entry', trade.entry], ['SL', trade.sl], ['TP', trade.tp],
-        ['Result', trade.result], ['P/L', trade.pnl == null || trade.pnl === '' ? '-' : formatCurrency(safeNumber(trade.pnl))], ['Win/Loss', trade.winLoss], ['Leverage', trade.leverage || '-'], ['RR', formatRr(trade.rr) || '-'], ['Screenshot', trade.screenshot ? 'Available (use journal view)' : '-'], ['Notes', escapeHtml(trade.notes || '-')],
+        ['Result', trade.result], ['P/L', trade.pnl == null || trade.pnl === '' ? '-' : formatCurrency(safeNumber(trade.pnl))], ['Win/Loss', trade.winLoss], ['Leverage', trade.leverage || '-'], ['RR', formatRr(trade.rr) || '-'], ['Screenshot', screenshotSrc ? 'Shown above' : '-'], ['Notes', escapeHtml(trade.notes || '-')],
       ].map(([k, v]) => `<tr><th>${k}</th><td>${v ?? '-'}</td></tr>`).join('')}
     </tbody></table></div>
 
@@ -617,11 +605,6 @@ els.journalBody.addEventListener('click', (event) => {
   const trade = state.trades.find((t) => t.id === id);
   if (!trade) return;
 
-
-  if (action === 'view-screenshot') {
-    openScreenshotViewer(trade.screenshot);
-    return;
-  }
 
   if (action === 'update-close') {
     const row = target.closest('tr');

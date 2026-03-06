@@ -218,6 +218,10 @@ button.danger {
 .status.win { color: var(--green); }
 .status.lose { color: var(--red); }
 .status.ongoing { color: var(--yellow); }
+
+.action-cell { font-weight: 700; }
+.action-long { color: #22c55e !important; }
+.action-short { color: #ef4444 !important; }
 .muted { color: var(--muted); }
 
 dialog {

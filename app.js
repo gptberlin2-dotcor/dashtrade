@@ -69,8 +69,9 @@ function safeNumber(value) {
 
 function deriveRr(entry, sl, tp, action) {
   if (!entry || !sl || !tp || !action) return 0;
-  const risk = action === 'Buy' ? entry - sl : sl - entry;
-  const reward = action === 'Buy' ? tp - entry : entry - tp;
+  const isLong = action === 'Long' || action === 'Buy';
+  const risk = isLong ? entry - sl : sl - entry;
+  const reward = isLong ? tp - entry : entry - tp;
   if (risk <= 0) return 0;
   return reward / risk;
 }
@@ -130,7 +131,7 @@ function renderJournal() {
       <td>${trade.no}</td>
       <td>${trade.date || ''}</td>
       <td>${trade.pair || ''}</td>
-      <td>${trade.action || ''}</td>
+      <td class="action-cell ${trade.action === 'Long' || trade.action === 'Buy' ? 'action-long' : trade.action === 'Short' || trade.action === 'Sell' ? 'action-short' : ''}">${trade.action || ''}</td>
       <td>${trade.tf || ''}</td>
       <td>${trade.setupType || ''}</td>
       <td>${trade.marketContext || ''}</td>

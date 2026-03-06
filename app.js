@@ -430,27 +430,50 @@ function showDetail(trade) {
     </tbody></table></div>
 
     <h4>Psychology / Execution Review</h4>
-    <div class="table-wrap"><table><tbody>
-      ${[
-        ['Emotion', trade.psychology?.emotion || '-'],
-        ['Confidence', trade.psychology?.confidence ?? '-'],
-        ['Discipline', trade.psychology?.discipline || '-'],
-      ].map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}
-    </tbody></table></div>
+    <div class="table-wrap detail-horizontal-table"><table>
+      <thead>
+        <tr>
+          <th>Emotion</th>
+          <th>Confidence</th>
+          <th>Discipline</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>${trade.psychology?.emotion || '-'}</td>
+          <td>${trade.psychology?.confidence ?? '-'}</td>
+          <td>${trade.psychology?.discipline || '-'}</td>
+        </tr>
+      </tbody>
+    </table></div>
 
     <h4>Setup Validation Checklist</h4>
-    <div class="table-wrap"><table><tbody>
-      ${[
-        ['RSI', c.rsi ? '✅' : '❌'],
-        ['MACD', c.macd ? '✅' : '❌'],
-        ['Structure', c.structure ? '✅' : '❌'],
-        ['Support/Resistance', c.supportResistance ? '✅' : '❌'],
-        ['Liquidity', c.liquidity ? '✅' : '❌'],
-        ['Volume', c.volume ? '✅' : '❌'],
-        ['Total checklist score', `${c.score ?? 0}/6`],
-        ['Setup rating', c.rating ?? 'Invalid'],
-      ].map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}
-    </tbody></table></div>
+    <div class="table-wrap detail-horizontal-table"><table>
+      <thead>
+        <tr>
+          <th>RSI</th>
+          <th>MACD</th>
+          <th>Structure</th>
+          <th>Support/Resistance</th>
+          <th>Liquidity</th>
+          <th>Volume</th>
+          <th>Total checklist score</th>
+          <th>Setup rating</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>${c.rsi ? '✅' : '❌'}</td>
+          <td>${c.macd ? '✅' : '❌'}</td>
+          <td>${c.structure ? '✅' : '❌'}</td>
+          <td>${c.supportResistance ? '✅' : '❌'}</td>
+          <td>${c.liquidity ? '✅' : '❌'}</td>
+          <td>${c.volume ? '✅' : '❌'}</td>
+          <td>${c.score ?? 0}/6</td>
+          <td>${c.rating ?? 'Invalid'}</td>
+        </tr>
+      </tbody>
+    </table></div>
   `;
   els.detailModal.showModal();
 }

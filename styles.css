@@ -392,3 +392,15 @@ dialog {
 #detail-content .table-wrap {
   margin-bottom: .9rem;
 }
+
+#detail-content .detail-horizontal-table table {
+  min-width: max-content;
+  width: auto;
+}
+
+#detail-content .detail-horizontal-table th,
+#detail-content .detail-horizontal-table td {
+  white-space: nowrap;
+  text-align: center;
+  min-width: 120px;
+}

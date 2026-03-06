@@ -98,16 +98,7 @@
               <label>TP<input name="tp" type="number" step="any" /></label>
               <label>RR<input name="rr" type="text" placeholder="1:3 (auto if empty)" /></label>
               <label>Leverage<input name="leverage" type="text" placeholder="x10" /></label>
-              <label>Result<input name="result" type="text" placeholder="Hit TP / Closed early" /></label>
-              <label>P/L<input name="pnl" type="number" step="0.01" required /></label>
-              <label>Win/Loss
-                <select name="winLoss">
-                  <option value="">Auto</option>
-                  <option>WIN</option>
-                  <option>LOSE</option>
-                  <option>ON GOING</option>
-                </select>
-              </label>
+              <label>Result<input name="result" type="text" placeholder="ON GOING (update close di Trade Journal)" /></label>
               <label class="full-width">Screenshot URL/Base64<input name="screenshot" type="text" placeholder="https://... or data:image/..." /></label>
               <label class="full-width">Notes<textarea name="notes" rows="3" placeholder="Write trade notes..."></textarea></label>
             </div>
@@ -164,7 +155,7 @@
             <table>
               <thead>
                 <tr>
-                  <th>No</th><th>Date</th><th>Pair</th><th>Action</th><th>TF</th><th>Setup Type</th><th>Market Context</th><th>Entry</th><th>SL</th><th>TP</th><th>RR</th><th>Leverage</th><th>Result</th><th>P/L</th><th>Win/Loss</th><th>Screenshot</th><th>Notes</th><th>Detail</th><th>Edit</th><th>Delete</th>
+                  <th>No</th><th>Date</th><th>Pair</th><th>Action</th><th>TF</th><th>Setup Type</th><th>Market Context</th><th>Entry</th><th>SL</th><th>TP</th><th>RR</th><th>Leverage</th><th>Result</th><th>P/L</th><th>Win/Loss</th><th>Update</th><th>Screenshot</th><th>Notes</th><th>Detail</th><th>Edit</th><th>Delete</th>
                 </tr>
               </thead>
               <tbody id="journal-table-body"></tbody>

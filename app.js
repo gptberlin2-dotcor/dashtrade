@@ -146,7 +146,7 @@ function renderHistory() {
         <td>${trade.no}</td>
         <td>${trade.date || '-'}</td>
         <td>${trade.pair || '-'}</td>
-        <td>${formatCurrency(safeNumber(trade.pnl))}</td>
+        <td>${trade.pnl == null || trade.pnl === '' ? '-' : formatCurrency(safeNumber(trade.pnl))}</td>
         <td><span class="status ${statusClass}">${status}</span></td>
       </tr>`;
     });
@@ -175,8 +175,15 @@ function renderJournal() {
       <td>${formatRr(trade.rr)}</td>
       <td>${trade.leverage ?? ''}</td>
       <td>${trade.result || ''}</td>
-      <td>${formatCurrency(safeNumber(trade.pnl))}</td>
-      <td>${trade.winLoss || statusFromPnl(safeNumber(trade.pnl))}</td>
+      <td><input type="number" step="0.01" class="journal-pnl-input" data-id="${trade.id}" value="${trade.pnl == null || trade.pnl === '' ? '' : String(trade.pnl)}" placeholder="isi saat close" /></td>
+      <td>
+        <select class="journal-winloss-select" data-id="${trade.id}">
+          <option value="ON GOING" ${trade.winLoss === 'ON GOING' || !trade.winLoss ? 'selected' : ''}>ON GOING</option>
+          <option value="WIN" ${trade.winLoss === 'WIN' ? 'selected' : ''}>WIN</option>
+          <option value="LOSE" ${trade.winLoss === 'LOSE' ? 'selected' : ''}>LOSE</option>
+        </select>
+      </td>
+      <td><button type="button" data-action="update-close" data-id="${trade.id}">Save</button></td>
       <td>${trade.screenshot ? '<a href="' + trade.screenshot + '" target="_blank" rel="noopener">view</a>' : '-'}</td>
       <td title="${escapeHtml(trade.notes || '')}">${escapeHtml(shortNotes)}</td>
       <td><button type="button" data-action="detail" data-id="${trade.id}">(detail)</button></td>
@@ -187,7 +194,7 @@ function renderJournal() {
 
   els.journalBody.innerHTML = rows.length
     ? rows.join('')
-    : '<tr><td colspan="20" class="muted">No trades saved yet.</td></tr>';
+    : '<tr><td colspan="21" class="muted">No trades saved yet.</td></tr>';
 }
 
 function renderAll() {
@@ -229,7 +236,13 @@ function toTrade(formData) {
   const autoRr = deriveRr(entry, sl, tp, action);
   const rrValue = parsedRr || autoRr;
   const rr = rrInput || (rrValue > 0 ? `1:${rrValue.toFixed(2).replace(/\.00$/, '')}` : '');
-  const pnl = safeNumber(formData.get('pnl'));
+
+  const pnl = existing?.pnl ?? null;
+
+  const resultInput = String(formData.get('result') || '').trim();
+  const result = resultInput || existing?.result || 'ON GOING';
+
+  const winLoss = existing?.winLoss || 'ON GOING';
 
   return {
     id: existing?.id || crypto.randomUUID(),
@@ -245,9 +258,9 @@ function toTrade(formData) {
     tp,
     rr,
     leverage: normalizeLeverage(formData.get('leverage')),
-    result: formData.get('result')?.trim(),
+    result,
     pnl,
-    winLoss: formData.get('winLoss') || statusFromPnl(pnl),
+    winLoss,
     screenshot: formData.get('screenshot')?.trim(),
     notes: formData.get('notes')?.trim(),
     psychology: {
@@ -295,8 +308,6 @@ function fillForm(trade) {
     rr: trade.rr,
     leverage: trade.leverage,
     result: trade.result,
-    pnl: trade.pnl,
-    winLoss: trade.winLoss,
     screenshot: trade.screenshot,
     notes: trade.notes,
     emotion: trade.psychology?.emotion,
@@ -325,7 +336,7 @@ function showDetail(trade) {
       ${[
         ['No', trade.no], ['Date', trade.date], ['Pair', trade.pair], ['Action', trade.action], ['TF', trade.tf], ['Setup Type', trade.setupType],
         ['Market Context', trade.marketContext], ['Entry', trade.entry], ['SL', trade.sl], ['TP', trade.tp],
-        ['Result', trade.result], ['P/L', formatCurrency(safeNumber(trade.pnl))], ['Win/Loss', trade.winLoss], ['Leverage', trade.leverage || '-'], ['RR', formatRr(trade.rr) || '-'], ['Screenshot', trade.screenshot ? `<a href=\"${trade.screenshot}\" target=\"_blank\" rel=\"noopener\">Open screenshot</a>` : '-'], ['Notes', escapeHtml(trade.notes || '-')],
+        ['Result', trade.result], ['P/L', trade.pnl == null || trade.pnl === '' ? '-' : formatCurrency(safeNumber(trade.pnl))], ['Win/Loss', trade.winLoss], ['Leverage', trade.leverage || '-'], ['RR', formatRr(trade.rr) || '-'], ['Screenshot', trade.screenshot ? `<a href=\"${trade.screenshot}\" target=\"_blank\" rel=\"noopener\">Open screenshot</a>` : '-'], ['Notes', escapeHtml(trade.notes || '-')],
       ].map(([k, v]) => `<tr><th>${k}</th><td>${v ?? '-'}</td></tr>`).join('')}
     </tbody></table></div>
 
@@ -393,6 +404,7 @@ els.form.addEventListener('reset', () => {
   state.editId = null;
   setTimeout(() => {
     els.form.elements.no.value = nextNo();
+    if (els.form.elements.result) els.form.elements.result.value = 'ON GOING';
     updateChecklistPreview();
   }, 0);
 });
@@ -409,7 +421,35 @@ els.journalBody.addEventListener('click', (event) => {
   const trade = state.trades.find((t) => t.id === id);
   if (!trade) return;
 
-  if (action === 'detail') showDetail(trade);
+
+  if (action === 'update-close') {
+    const row = target.closest('tr');
+    if (!row) return;
+    const pnlInputEl = row.querySelector('.journal-pnl-input');
+    const winLossEl = row.querySelector('.journal-winloss-select');
+    const pnlRaw = pnlInputEl ? pnlInputEl.value.trim() : '';
+    const hasPnl = pnlRaw !== '';
+    const nextPnl = hasPnl ? safeNumber(pnlRaw) : null;
+    const selectedWinLoss = winLossEl ? winLossEl.value : 'ON GOING';
+    const derivedWinLoss = hasPnl ? statusFromPnl(nextPnl) : 'ON GOING';
+    const nextWinLoss = selectedWinLoss === 'ON GOING' ? derivedWinLoss : selectedWinLoss;
+
+    state.trades = state.trades.map((t) => {
+      if (t.id !== id) return t;
+      return {
+        ...t,
+        pnl: nextPnl,
+        winLoss: nextWinLoss,
+        result: hasPnl && (!t.result || t.result === 'ON GOING') ? 'CLOSED' : (t.result || 'ON GOING'),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    saveTrades();
+    renderAll();
+    return;
+  }
+
+    if (action === 'detail') showDetail(trade);
   if (action === 'edit') fillForm(trade);
   if (action === 'delete') {
     state.trades = state.trades.filter((t) => t.id !== id);
@@ -436,5 +476,6 @@ els.calcReset.addEventListener('click', () => {
 });
 
 renderAll();
+if (els.form.elements.result && !els.form.elements.result.value) els.form.elements.result.value = 'ON GOING';
 updateChecklistPreview();
 runCalculator();

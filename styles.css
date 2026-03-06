@@ -210,8 +210,29 @@ button.danger {
 
 .checklist-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: .45rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: .6rem;
+}
+
+.checklist-grid label {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  min-height: 42px;
+  padding: .45rem .6rem;
+  border: 1px solid #2f2f2f;
+  border-radius: .5rem;
+  background: #0f0f0f;
+  color: #e5e7eb;
+  font-size: .95rem;
+}
+
+.checklist-grid input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #22c55e;
+  flex-shrink: 0;
 }
 .hint { color: var(--muted); margin: .55rem 0 0; }
 .status { font-weight: 700; }
@@ -242,7 +263,7 @@ button.danger {
   border-radius: .75rem;
   min-height: 74px;
   padding: .75rem .85rem;
-  background: #0d1528;
+  background: #0b0b0b;
   display: flex;
   align-items: center;
   gap: .85rem;
@@ -253,13 +274,13 @@ button.danger {
 .upload-dropzone:hover,
 .upload-dropzone:focus {
   border-color: #5e6b85;
-  background: #101c34;
+  background: #121212;
   outline: none;
 }
 
 .upload-dropzone.drag-over {
-  border-color: #93c5fd;
-  background: #122440;
+  border-color: #5a5a5a;
+  background: #151515;
 }
 
 .upload-icon {
@@ -302,23 +323,6 @@ button.danger {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.screenshot-preview-wrap {
-  border: 1px dashed #3a3a3a;
-  border-radius: .55rem;
-  min-height: 80px;
-  padding: .5rem;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  background: #0b0b0b;
-}
-#screenshot-preview {
-  max-width: 180px;
-  max-height: 140px;
-  object-fit: cover;
-  border: 1px solid #3a3a3a;
-  border-radius: .5rem;
 }
 
 dialog {

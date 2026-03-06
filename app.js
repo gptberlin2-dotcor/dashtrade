@@ -140,6 +140,35 @@ function fileToDataUrl(file) {
   });
 }
 
+
+function normalizeScreenshotSrc(src) {
+  const value = String(src || '').trim();
+if (!value) return '';
+
+  // Normalize malformed image data URLs that miss ";base64,"
+  if (value.startsWith('data:image/') && !value.includes(';base64,')) {
+    const [prefix, payload] = value.split(',', 2);
+    if (payload) return `${prefix};base64,${payload}`;
+  }
+
+  return value;
+}
+
+function openScreenshotViewer(src) {
+  const normalized = normalizeScreenshotSrc(src);
+  if (!normalized) return;
+
+  if (!normalized.startsWith('data:image/')) {
+    window.open(normalized, '_blank', 'noopener');
+    return;
+  }
+
+  const win = window.open('', '_blank', 'noopener');
+  if (!win) return;
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Screenshot Viewer</title><style>body{margin:0;background:#0b0b0b;display:grid;place-items:center;min-height:100vh}img{max-width:100vw;max-height:100vh;object-fit:contain}</style></head><body><img src="${normalized}" alt="trade screenshot"/></body></html>`);
+  win.document.close();
+}
+
 function deriveRr(entry, sl, tp, action) {
   if (!entry || !sl || !tp) return 0;
 
@@ -240,7 +269,7 @@ function renderJournal() {
         </select>
       </td>
       <td><button type="button" data-action="update-close" data-id="${trade.id}">Save</button></td>
-      <td>${trade.screenshot ? '<a href="' + trade.screenshot + '" target="_blank" rel="noopener">view</a>' : '-'}</td>
+      <td>${trade.screenshot ? '<button type="button" data-action="view-screenshot" data-id="' + trade.id + '">view</button>' : '-'}</td>
       <td title="${escapeHtml(trade.notes || '')}">${escapeHtml(shortNotes)}</td>
       <td><button type="button" data-action="detail" data-id="${trade.id}">(detail)</button></td>
       <td><button type="button" data-action="edit" data-id="${trade.id}">Edit</button></td>
@@ -317,7 +346,7 @@ function toTrade(formData) {
     result,
     pnl,
     winLoss,
-    screenshot: formData.get('screenshot')?.trim(),
+    screenshot: normalizeScreenshotSrc(formData.get('screenshot')?.trim()),
     notes: formData.get('notes')?.trim(),
     psychology: {
       emotion: formData.get('emotion'),
@@ -408,7 +437,7 @@ function showDetail(trade) {
       ${[
         ['No', trade.no], ['Date', trade.date], ['Pair', trade.pair], ['Action', trade.action], ['TF', trade.tf], ['Setup Type', trade.setupType],
         ['Market Context', trade.marketContext], ['Entry', trade.entry], ['SL', trade.sl], ['TP', trade.tp],
-        ['Result', trade.result], ['P/L', trade.pnl == null || trade.pnl === '' ? '-' : formatCurrency(safeNumber(trade.pnl))], ['Win/Loss', trade.winLoss], ['Leverage', trade.leverage || '-'], ['RR', formatRr(trade.rr) || '-'], ['Screenshot', trade.screenshot ? `<a href=\"${trade.screenshot}\" target=\"_blank\" rel=\"noopener\">Open screenshot</a>` : '-'], ['Notes', escapeHtml(trade.notes || '-')],
+        ['Result', trade.result], ['P/L', trade.pnl == null || trade.pnl === '' ? '-' : formatCurrency(safeNumber(trade.pnl))], ['Win/Loss', trade.winLoss], ['Leverage', trade.leverage || '-'], ['RR', formatRr(trade.rr) || '-'], ['Screenshot', trade.screenshot ? 'Available (use journal view)' : '-'], ['Notes', escapeHtml(trade.notes || '-')],
       ].map(([k, v]) => `<tr><th>${k}</th><td>${v ?? '-'}</td></tr>`).join('')}
     </tbody></table></div>
 
@@ -534,14 +563,16 @@ els.form.addEventListener('input', (event) => {
 els.form.elements.screenshot?.addEventListener('input', (event) => {
   const target = event.target;
   if (!(target instanceof HTMLInputElement)) return;
-  setScreenshotPreview(target.value);
-  if (!target.value.trim()) setUploadFileChip('');
+  const normalized = normalizeScreenshotSrc(target.value);
+  if (normalized !== target.value) target.value = normalized;
+  setScreenshotPreview(normalized);
+  if (!normalized.trim()) setUploadFileChip('');
 });
 
 async function handleScreenshotFile(file) {
   if (!file) return;
   try {
-    const dataUrl = await fileToDataUrl(file);
+    const dataUrl = normalizeScreenshotSrc(await fileToDataUrl(file));
     if (els.form.elements.screenshot) els.form.elements.screenshot.value = dataUrl;
     setScreenshotPreview(dataUrl);
     setUploadFileChip(file.name || 'uploaded-image');
@@ -586,6 +617,11 @@ els.journalBody.addEventListener('click', (event) => {
   const trade = state.trades.find((t) => t.id === id);
   if (!trade) return;
 
+
+  if (action === 'view-screenshot') {
+    openScreenshotViewer(trade.screenshot);
+    return;
+  }
 
   if (action === 'update-close') {
     const row = target.closest('tr');

@@ -143,7 +143,7 @@ function fileToDataUrl(file) {
 
 function normalizeScreenshotSrc(src) {
   const value = String(src || '').trim();
-  if (!value) return '';
+if (!value) return '';
 
   // Normalize malformed image data URLs that miss ";base64,"
   if (value.startsWith('data:image/') && !value.includes(';base64,')) {

@@ -27,6 +27,8 @@ const els = {
   calcReset: document.getElementById('calc-reset'),
   screenshotFile: document.getElementById('screenshot-file'),
   screenshotPreview: document.getElementById('screenshot-preview'),
+  screenshotDropzone: document.getElementById('screenshot-dropzone'),
+  uploadFileChip: document.getElementById('upload-file-chip'),
 };
 
 function loadTrades() {
@@ -114,6 +116,19 @@ function setScreenshotPreview(value) {
   }
   els.screenshotPreview.src = src;
   els.screenshotPreview.hidden = false;
+}
+
+
+function setUploadFileChip(name) {
+  if (!els.uploadFileChip) return;
+  const label = String(name || '').trim();
+  if (!label) {
+    els.uploadFileChip.hidden = true;
+    els.uploadFileChip.textContent = '-';
+    return;
+  }
+  els.uploadFileChip.hidden = false;
+  els.uploadFileChip.textContent = label;
 }
 
 function fileToDataUrl(file) {
@@ -348,6 +363,8 @@ function fillForm(trade) {
   });
 
   setScreenshotPreview(trade.screenshot);
+  if (trade.screenshot && trade.screenshot.startsWith('data:image')) setUploadFileChip('uploaded-image');
+  else setUploadFileChip('');
 
   state.editId = trade.id;
   if (els.form.elements.rr) els.form.elements.rr.dataset.manual = 'true';
@@ -440,6 +457,7 @@ els.form.addEventListener('submit', (event) => {
   els.form.reset();
   if (els.screenshotFile) els.screenshotFile.value = '';
   setScreenshotPreview('');
+  setUploadFileChip('');
   if (els.form.elements.rr) els.form.elements.rr.dataset.manual = 'false';
   renderAll();
   updateChecklistPreview();
@@ -452,6 +470,7 @@ els.form.addEventListener('reset', () => {
     els.form.elements.no.value = nextNo();
     if (els.screenshotFile) els.screenshotFile.value = '';
     setScreenshotPreview('');
+    setUploadFileChip('');
     if (els.form.elements.result) els.form.elements.result.value = 'ON GOING';
     if (els.form.elements.rr) els.form.elements.rr.dataset.manual = 'false';
     autoFillRrFromSetup();
@@ -486,20 +505,46 @@ els.form.elements.screenshot?.addEventListener('input', (event) => {
   const target = event.target;
   if (!(target instanceof HTMLInputElement)) return;
   setScreenshotPreview(target.value);
+  if (!target.value.trim()) setUploadFileChip('');
 });
 
-els.screenshotFile?.addEventListener('change', async (event) => {
-  const target = event.target;
-  if (!(target instanceof HTMLInputElement)) return;
-  const file = target.files?.[0];
+async function handleScreenshotFile(file) {
   if (!file) return;
   try {
     const dataUrl = await fileToDataUrl(file);
     if (els.form.elements.screenshot) els.form.elements.screenshot.value = dataUrl;
     setScreenshotPreview(dataUrl);
+    setUploadFileChip(file.name || 'uploaded-image');
   } catch (err) {
     console.error(err);
   }
+}
+
+els.screenshotFile?.addEventListener('change', async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  const file = target.files?.[0];
+  await handleScreenshotFile(file);
+});
+
+['dragenter', 'dragover'].forEach((eventName) => {
+  els.screenshotDropzone?.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    els.screenshotDropzone.classList.add('drag-over');
+  });
+});
+
+['dragleave', 'drop'].forEach((eventName) => {
+  els.screenshotDropzone?.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    els.screenshotDropzone.classList.remove('drag-over');
+  });
+});
+
+els.screenshotDropzone?.addEventListener('drop', async (event) => {
+  if (!(event instanceof DragEvent)) return;
+  const file = event.dataTransfer?.files?.[0];
+  await handleScreenshotFile(file);
 });
 
 els.journalBody.addEventListener('click', (event) => {
@@ -570,5 +615,6 @@ if (els.form.elements.result && !els.form.elements.result.value) els.form.elemen
 if (els.form.elements.rr) els.form.elements.rr.dataset.manual = 'false';
 autoFillRrFromSetup();
 setScreenshotPreview(els.form.elements.screenshot?.value || '');
+setUploadFileChip('');
 updateChecklistPreview();
 runCalculator();

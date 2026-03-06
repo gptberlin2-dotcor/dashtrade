@@ -67,6 +67,40 @@ function safeNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function parseRr(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (!value) return 0;
+  const raw = String(value).trim();
+  if (!raw) return 0;
+
+  if (raw.includes(':')) {
+    const [left, right] = raw.split(':').map((part) => safeNumber(part));
+    if (left > 0 && right >= 0) return right / left;
+    return 0;
+  }
+
+  return safeNumber(raw);
+}
+
+function formatRr(value) {
+  const raw = value == null ? '' : String(value).trim();
+  if (!raw) return '';
+  if (raw.includes(':')) return raw;
+
+  const rr = parseRr(raw);
+  if (!rr) return '';
+  return `1:${rr.toFixed(2).replace(/\.00$/, '')}`;
+}
+
+function normalizeLeverage(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const numericPart = raw.toLowerCase().startsWith('x') ? raw.slice(1) : raw;
+  const parsed = safeNumber(numericPart);
+  if (!parsed) return '';
+  return `x${parsed}`;
+}
+
 function deriveRr(entry, sl, tp, action) {
   if (!entry || !sl || !tp || !action) return 0;
   const isLong = action === 'Long' || action === 'Buy';
@@ -84,7 +118,7 @@ function renderMetrics() {
   const grossProfit = state.trades.reduce((s, t) => s + Math.max(0, safeNumber(t.pnl)), 0);
   const grossLossAbs = Math.abs(state.trades.reduce((s, t) => s + Math.min(0, safeNumber(t.pnl)), 0));
   const profitFactor = grossLossAbs ? grossProfit / grossLossAbs : null;
-  const rrValues = state.trades.map((t) => safeNumber(t.rr)).filter((rr) => rr > 0);
+  const rrValues = state.trades.map((t) => parseRr(t.rr)).filter((rr) => rr > 0);
   const avgRr = rrValues.length ? rrValues.reduce((a, b) => a + b, 0) / rrValues.length : 0;
 
   const items = [
@@ -138,7 +172,7 @@ function renderJournal() {
       <td>${trade.entry ?? ''}</td>
       <td>${trade.sl ?? ''}</td>
       <td>${trade.tp ?? ''}</td>
-      <td>${safeNumber(trade.rr).toFixed(2)}</td>
+      <td>${formatRr(trade.rr)}</td>
       <td>${trade.leverage ?? ''}</td>
       <td>${trade.result || ''}</td>
       <td>${formatCurrency(safeNumber(trade.pnl))}</td>
@@ -190,9 +224,11 @@ function toTrade(formData) {
   const sl = safeNumber(formData.get('sl'));
   const tp = safeNumber(formData.get('tp'));
   const action = formData.get('action');
-  const inputRr = safeNumber(formData.get('rr'));
-
-  const rr = inputRr || deriveRr(entry, sl, tp, action);
+  const rrInput = String(formData.get('rr') || '').trim();
+  const parsedRr = parseRr(rrInput);
+  const autoRr = deriveRr(entry, sl, tp, action);
+  const rrValue = parsedRr || autoRr;
+  const rr = rrInput || (rrValue > 0 ? `1:${rrValue.toFixed(2).replace(/\.00$/, '')}` : '');
   const pnl = safeNumber(formData.get('pnl'));
 
   return {
@@ -208,7 +244,7 @@ function toTrade(formData) {
     sl,
     tp,
     rr,
-    leverage: safeNumber(formData.get('leverage')),
+    leverage: normalizeLeverage(formData.get('leverage')),
     result: formData.get('result')?.trim(),
     pnl,
     winLoss: formData.get('winLoss') || statusFromPnl(pnl),
@@ -288,8 +324,8 @@ function showDetail(trade) {
     <div class="table-wrap"><table><tbody>
       ${[
         ['No', trade.no], ['Date', trade.date], ['Pair', trade.pair], ['Action', trade.action], ['TF', trade.tf], ['Setup Type', trade.setupType],
-        ['Market Context', trade.marketContext], ['Entry', trade.entry], ['SL', trade.sl], ['TP', trade.tp], ['RR', safeNumber(trade.rr).toFixed(2)], ['Leverage', trade.leverage],
-        ['Result', trade.result], ['P/L', formatCurrency(safeNumber(trade.pnl))], ['Win/Loss', trade.winLoss], ['Screenshot', trade.screenshot ? `<a href="${trade.screenshot}" target="_blank" rel="noopener">Open screenshot</a>` : '-'], ['Notes', escapeHtml(trade.notes || '-')],
+        ['Market Context', trade.marketContext], ['Entry', trade.entry], ['SL', trade.sl], ['TP', trade.tp],
+        ['Result', trade.result], ['P/L', formatCurrency(safeNumber(trade.pnl))], ['Win/Loss', trade.winLoss], ['Leverage', trade.leverage || '-'], ['RR', formatRr(trade.rr) || '-'], ['Screenshot', trade.screenshot ? `<a href=\"${trade.screenshot}\" target=\"_blank\" rel=\"noopener\">Open screenshot</a>` : '-'], ['Notes', escapeHtml(trade.notes || '-')],
       ].map(([k, v]) => `<tr><th>${k}</th><td>${v ?? '-'}</td></tr>`).join('')}
     </tbody></table></div>
 

@@ -57,7 +57,7 @@ function statusFromPnl(pnl) {
 }
 
 function checklistMeta(checklist) {
-  const keys = ['rsi', 'macd', 'structure', 'supportResistance', 'liquidity', ''];
+  const keys = ['rsi', 'macd', 'structure', 'supportResistance', 'liquidity', 'volume'];
   const score = keys.reduce((sum, key) => sum + (checklist[key] ? 1 : 0), 0);
   let rating = 'Invalid';
   if (score >= 5) rating = 'Strong setup';
@@ -69,6 +69,15 @@ function checklistMeta(checklist) {
 function safeNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+function safeCalcNumber(value, { allowPrefixX = false } = {}) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return 0;
+
+  const normalized = allowPrefixX ? raw.replace(/^x/i, '') : raw;
+  const cleaned = normalized.replace(/[^0-9.+-]/g, '');
+  return safeNumber(cleaned);
 }
 
 function parseRr(value) {
@@ -291,7 +300,7 @@ function toTrade(formData) {
     structure: formData.get('checklist_structure') === 'on',
     supportResistance: formData.get('checklist_supportResistance') === 'on',
     liquidity: formData.get('checklist_liquidity') === 'on',
-    : formData.get('checklist_') === 'on',
+    volume: formData.get('checklist_volume') === 'on',
   };
 
   const { score, rating } = checklistMeta(checklist);
@@ -362,7 +371,7 @@ function updateChecklistPreview() {
     structure: data.get('checklist_structure') === 'on',
     supportResistance: data.get('checklist_supportResistance') === 'on',
     liquidity: data.get('checklist_liquidity') === 'on',
-    : data.get('checklist_') === 'on',
+    volume: data.get('checklist_volume') === 'on',
   };
   const { score, rating } = checklistMeta(checklist);
   els.checklistPreview.textContent = `Checklist Score: ${score}/6 (${rating})`;
@@ -484,18 +493,20 @@ function formatCurrency(value) {
 }
 
 function runCalculator() {
-  const balance = safeNumber(els.calcBalance.value);
-  const leverage = safeNumber(els.calcLeverage.value);
-  const slPct = safeNumber(els.calcSl.value) / 100;
-  const tpPct = safeNumber(els.calcTp.value) / 100;
+  if (!els.calcBwl || !els.calcLoss || !els.calcProfit) return;
+
+  const balance = safeCalcNumber(els.calcBalance?.value);
+  const leverage = safeCalcNumber(els.calcLeverage?.value, { allowPrefixX: true });
+  const slPct = safeCalcNumber(els.calcSl?.value) / 100;
+  const tpPct = safeCalcNumber(els.calcTp?.value) / 100;
 
   const bwl = balance * leverage;
   const balanceLoss = bwl * slPct;
   const balanceProfit = bwl * tpPct;
 
-  els.calcBwl.textContent = formatCurrency(bwl);
-  els.calcLoss.textContent = formatCurrency(balanceLoss);
-  els.calcProfit.textContent = formatCurrency(balanceProfit);
+  els.calcBwl.textContent = formatCurrency(Number.isFinite(bwl) ? bwl : 0);
+  els.calcLoss.textContent = formatCurrency(Number.isFinite(balanceLoss) ? balanceLoss : 0);
+  els.calcProfit.textContent = formatCurrency(Number.isFinite(balanceProfit) ? balanceProfit : 0);
 }
 
 function autoFillRrFromSetup(options = {}) {
@@ -676,15 +687,20 @@ els.detailModal.addEventListener('click', (event) => {
   if (!inside) els.detailModal.close();
 });
 
-[els.currency, els.calcBalance, els.calcLeverage, els.calcSl, els.calcTp].forEach((el) => el.addEventListener('input', runCalculator));
-els.calcReset.addEventListener('click', () => {
-  els.currency.value = 'USD';
-  els.calcBalance.value = 0;
-  els.calcLeverage.value = 1;
-  els.calcSl.value = 1;
-  els.calcTp.value = 2;
-  runCalculator();
-});
+[els.currency, els.calcBalance, els.calcLeverage, els.calcSl, els.calcTp]
+  .filter(Boolean)
+  .forEach((el) => el.addEventListener('input', runCalculator));
+
+if (els.calcReset) {
+  els.calcReset.addEventListener('click', () => {
+    if (els.currency) els.currency.value = 'USD';
+    if (els.calcBalance) els.calcBalance.value = 0;
+    if (els.calcLeverage) els.calcLeverage.value = 1;
+    if (els.calcSl) els.calcSl.value = 1;
+    if (els.calcTp) els.calcTp.value = 2;
+    runCalculator();
+  });
+}
 
 renderAll();
 if (els.form.elements.result && !els.form.elements.result.value) els.form.elements.result.value = 'ON GOING';

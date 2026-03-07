@@ -48,3 +48,18 @@ Lalu refresh halaman. App akan:
 - data dipisahkan per `userId` via header `X-User-Id`
 
 > Catatan: screenshot yang diupload tetap tersimpan karena ikut terserialisasi di payload trade.
+
+
+## Opsi storage: simpan ke folder di GitHub repo (tanpa local DB)
+
+Jika Anda ingin data masuk ke folder `storage/` di GitHub repo (bukan PostgreSQL), jalankan API dengan mode `github`.
+
+```bash
+npm install
+AUTH_TOKEN='super-secret-token' STORAGE_BACKEND='github' GITHUB_STORAGE_TOKEN='ghp_xxx' GITHUB_STORAGE_REPO='username/repo' GITHUB_STORAGE_BRANCH='main' GITHUB_STORAGE_PATH_PREFIX='storage' npm start
+```
+
+Setiap user akan disimpan sebagai file JSON:
+- `storage/<userId>.json`
+
+Ini membuat data trade + screenshot payload bisa diakses lintas device selama frontend mengarah ke API yang sama.

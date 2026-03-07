@@ -429,3 +429,37 @@ dialog {
     padding: .45rem .35rem;
   }
 }
+
+.journal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+}
+
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: .45rem;
+  border: 1px solid #3a3a3a;
+  background: #111111;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .9rem;
+  line-height: 1;
+}
+
+.icon-btn.danger {
+  background: #2a0d0d;
+  border-color: #7f1d1d;
+}
+
+.icon-btn:hover {
+  background: #171717;
+}
+
+.icon-btn.danger:hover {
+  background: #3b1111;
+}

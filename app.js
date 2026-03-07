@@ -240,7 +240,6 @@ function renderJournal() {
   const rows = [...state.trades]
     .sort((a, b) => Number(a.no) - Number(b.no))
     .map((trade) => {
-      const shortNotes = trade.notes?.length > 40 ? `${trade.notes.slice(0, 40)}...` : trade.notes || '';
       return `<tr>
       <td>${trade.no}</td>
       <td>${trade.date || ''}</td>
@@ -263,18 +262,20 @@ function renderJournal() {
           <option value="LOSE" ${trade.winLoss === 'LOSE' ? 'selected' : ''}>LOSE</option>
         </select>
       </td>
-      <td><button type="button" data-action="update-close" data-id="${trade.id}">Save</button></td>
-      <td>${trade.screenshot ? 'Uploaded' : '-'}</td>
-      <td title="${escapeHtml(trade.notes || '')}">${escapeHtml(shortNotes)}</td>
-      <td><button type="button" data-action="detail" data-id="${trade.id}">(detail)</button></td>
-      <td><button type="button" data-action="edit" data-id="${trade.id}">Edit</button></td>
-      <td><button type="button" data-action="delete" data-id="${trade.id}" class="danger">Delete</button></td>
+      <td>
+        <div class="journal-actions" role="group" aria-label="Row actions">
+          <button type="button" class="icon-btn" title="Save close update" aria-label="Save close update" data-action="update-close" data-id="${trade.id}">💾</button>
+          <button type="button" class="icon-btn" title="Detail" aria-label="Detail" data-action="detail" data-id="${trade.id}">🔍</button>
+          <button type="button" class="icon-btn" title="Edit" aria-label="Edit" data-action="edit" data-id="${trade.id}">✏️</button>
+          <button type="button" class="icon-btn danger" title="Delete" aria-label="Delete" data-action="delete" data-id="${trade.id}">🗑️</button>
+        </div>
+      </td>
     </tr>`;
     });
 
   els.journalBody.innerHTML = rows.length
     ? rows.join('')
-    : '<tr><td colspan="21" class="muted">No trades saved yet.</td></tr>';
+    : '<tr><td colspan="16" class="muted">No trades saved yet.</td></tr>';
 }
 
 function renderAll() {

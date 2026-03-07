@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'dashtrade.trades.v1';
+const SYNC_QUEUE_KEY = 'dashtrade.syncQueue.v1';
 
 const state = {
   trades: loadTrades(),
@@ -40,7 +41,7 @@ const uiState = {
   pendingDeleteId: null,
   retryDelayMs: 2000,
   retryTimer: null,
-  pendingSyncJobs: new Map(),
+  syncQueue: loadSyncQueue(),
 };
 
 const CLOUD_API_BASE = (window.DASHTRADE_API_URL || localStorage.getItem('dashtrade.apiBase') || '').trim();
@@ -64,33 +65,58 @@ function remoteHeaders() {
   return headers;
 }
 
+function loadSyncQueue() {
+  const raw = localStorage.getItem(SYNC_QUEUE_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistSyncQueue() {
+  localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(uiState.syncQueue));
+}
+
+function queueSize() {
+  return uiState.syncQueue.length;
+}
+
+function enqueueSyncOperation(operation) {
+  const id = operation.id;
+  if (!id) return;
+
+  if (operation.type === 'delete') {
+    uiState.syncQueue = uiState.syncQueue.filter((item) => item.id !== id);
+    uiState.syncQueue.push(operation);
+  } else {
+    const existingDelete = uiState.syncQueue.find((item) => item.id === id && item.type === 'delete');
+    uiState.syncQueue = uiState.syncQueue.filter((item) => item.id !== id);
+    if (existingDelete && operation.type === 'create') {
+      uiState.syncQueue.push(operation);
+    } else {
+      uiState.syncQueue.push(operation.type === 'create' ? operation : { ...operation, type: 'update' });
+    }
+  }
+
+  persistSyncQueue();
+  updateSyncStatus('failed', `Sync pending: ${queueSize()} item(s)`);
+  scheduleRetryDrain();
+}
+
 function scheduleRetryDrain() {
-  if (uiState.retryTimer || uiState.pendingSyncJobs.size === 0) return;
+  if (uiState.retryTimer || queueSize() === 0 || !isRemoteEnabled()) return;
 
   uiState.retryTimer = window.setTimeout(async () => {
     uiState.retryTimer = null;
-    await drainRetryJobs();
-    if (uiState.pendingSyncJobs.size > 0) {
+    await drainSyncQueue();
+    if (queueSize() > 0) {
       uiState.retryDelayMs = Math.min(uiState.retryDelayMs * 2, 30000);
       scheduleRetryDrain();
     }
   }, uiState.retryDelayMs);
-}
-
-function enqueueRetryJob(key, run) {
-  uiState.pendingSyncJobs.set(key, run);
-  updateSyncStatus('failed', `Sync failed • retrying ${uiState.pendingSyncJobs.size} pending`);
-  scheduleRetryDrain();
-}
-
-async function drainRetryJobs() {
-  if (uiState.pendingSyncJobs.size === 0) return;
-  const jobs = [...uiState.pendingSyncJobs.entries()];
-  uiState.pendingSyncJobs.clear();
-
-  for (const [key, run] of jobs) {
-    await executeRemoteJob({ key, run, allowQueueOnFail: true, source: 'retry' });
-  }
 }
 
 async function remoteRequest(path, options = {}) {
@@ -114,25 +140,67 @@ async function remoteRequest(path, options = {}) {
   return null;
 }
 
-async function executeRemoteJob({ key, run, allowQueueOnFail = true, source = 'live' }) {
+async function sendSyncOperation(operation) {
+  if (operation.type === 'create') {
+    return remoteRequest('/api/trades', {
+      method: 'POST',
+      body: JSON.stringify({ trade: operation.trade }),
+    });
+  }
+
+  if (operation.type === 'update') {
+    return remoteRequest(`/api/trades/${encodeURIComponent(operation.id)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ trade: operation.trade }),
+    });
+  }
+
+  if (operation.type === 'delete') {
+    return remoteRequest(`/api/trades/${encodeURIComponent(operation.id)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  return null;
+}
+
+async function executeSyncOperation(operation, { queueOnFail = true } = {}) {
   if (!isRemoteEnabled()) {
     updateSyncStatus('local', 'Sync: Local only');
     return null;
   }
 
-  if (source === 'live') updateSyncStatus('syncing', 'Sync: Syncing...');
-
+  updateSyncStatus('syncing', 'Sync: Syncing...');
   try {
-    const data = await run();
-    const pending = uiState.pendingSyncJobs.size;
-    updateSyncStatus('synced', pending > 0 ? `Sync: Synced • ${pending} pending retry` : 'Sync: Synced');
+    const data = await sendSyncOperation(operation);
+    const pending = queueSize();
+    updateSyncStatus('synced', pending > 0 ? `Sync: Synced • ${pending} pending` : 'Sync: Synced');
     if (pending === 0) uiState.retryDelayMs = 2000;
     return data;
   } catch (error) {
-    if (allowQueueOnFail && key) enqueueRetryJob(key, run);
+    if (queueOnFail) enqueueSyncOperation(operation);
     else updateSyncStatus('failed', 'Sync: Failed');
     throw error;
   }
+}
+
+async function drainSyncQueue() {
+  if (!isRemoteEnabled() || queueSize() === 0) return;
+
+  while (queueSize() > 0) {
+    const current = uiState.syncQueue[0];
+    try {
+      await executeSyncOperation(current, { queueOnFail: false });
+      uiState.syncQueue.shift();
+      persistSyncQueue();
+    } catch (error) {
+      console.warn('[dashtrade] queue retry failed:', error.message);
+      updateSyncStatus('failed', `Sync pending: ${queueSize()} item(s)`);
+      return;
+    }
+  }
+
+  updateSyncStatus('synced', 'Sync: Synced');
 }
 
 async function fetchRemoteTrades() {
@@ -141,18 +209,19 @@ async function fetchRemoteTrades() {
     return;
   }
 
-  try {
-    const data = await executeRemoteJob({
-      key: 'fetch-trades',
-      run: () => remoteRequest('/api/trades'),
-      allowQueueOnFail: false,
-      source: 'live',
-    });
+  if (queueSize() > 0) {
+    updateSyncStatus('failed', `Sync pending: ${queueSize()} item(s)`);
+    return;
+  }
 
+  try {
+    updateSyncStatus('syncing', 'Sync: Loading cloud data...');
+    const data = await remoteRequest('/api/trades');
     if (!Array.isArray(data)) return;
     state.trades = data;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.trades));
     renderAll();
+    updateSyncStatus('synced', 'Sync: Synced');
   } catch (error) {
     console.warn('[dashtrade] remote fetch skipped:', error.message);
     updateSyncStatus('failed', 'Sync: Failed to load remote data');
@@ -161,16 +230,9 @@ async function fetchRemoteTrades() {
 
 async function remoteCreateTrade(trade) {
   if (!isRemoteEnabled()) return;
+  const operation = { type: 'create', id: trade.id, trade };
   try {
-    await executeRemoteJob({
-      key: `create:${trade.id}`,
-      run: () => remoteRequest('/api/trades', {
-        method: 'POST',
-        body: JSON.stringify({ trade }),
-      }),
-      allowQueueOnFail: true,
-      source: 'live',
-    });
+    await executeSyncOperation(operation, { queueOnFail: true });
   } catch (error) {
     console.warn('[dashtrade] create sync failed:', error.message);
   }
@@ -178,16 +240,9 @@ async function remoteCreateTrade(trade) {
 
 async function remoteUpdateTrade(trade) {
   if (!isRemoteEnabled()) return;
+  const operation = { type: 'update', id: trade.id, trade };
   try {
-    await executeRemoteJob({
-      key: `update:${trade.id}`,
-      run: () => remoteRequest(`/api/trades/${encodeURIComponent(trade.id)}`, {
-        method: 'PUT',
-        body: JSON.stringify({ trade }),
-      }),
-      allowQueueOnFail: true,
-      source: 'live',
-    });
+    await executeSyncOperation(operation, { queueOnFail: true });
   } catch (error) {
     console.warn('[dashtrade] update sync failed:', error.message);
   }
@@ -195,18 +250,31 @@ async function remoteUpdateTrade(trade) {
 
 async function remoteDeleteTrade(id) {
   if (!isRemoteEnabled()) return;
+  const operation = { type: 'delete', id };
   try {
-    await executeRemoteJob({
-      key: `delete:${id}`,
-      run: () => remoteRequest(`/api/trades/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      }),
-      allowQueueOnFail: true,
-      source: 'live',
-    });
+    await executeSyncOperation(operation, { queueOnFail: true });
   } catch (error) {
     console.warn('[dashtrade] delete sync failed:', error.message);
   }
+}
+
+async function initializeRemoteSync() {
+  if (!isRemoteEnabled()) {
+    updateSyncStatus('local', 'Sync: Local only');
+    return;
+  }
+
+  if (!navigator.onLine) {
+    updateSyncStatus('failed', `Sync: Offline • ${queueSize()} pending`);
+    return;
+  }
+
+  if (queueSize() > 0) {
+    updateSyncStatus('syncing', `Sync: Retrying ${queueSize()} pending...`);
+    await drainSyncQueue();
+  }
+
+  await fetchRemoteTrades();
 }
 
 function loadTrades() {
@@ -1009,23 +1077,16 @@ setUploadFileChip('');
 updateChecklistPreview();
 runCalculator();
 
-if (!isRemoteEnabled()) {
-  updateSyncStatus('local', 'Sync: Local only');
-} else if (!navigator.onLine) {
-  updateSyncStatus('failed', 'Sync: Offline');
-} else {
-  updateSyncStatus('syncing', 'Sync: Connecting...');
-}
-
 window.addEventListener('online', async () => {
   if (!isRemoteEnabled()) return;
-  updateSyncStatus('syncing', 'Sync: Online, retrying...');
-  await drainRetryJobs();
+  updateSyncStatus('syncing', `Sync: Online • retry ${queueSize()} pending`);
+  await drainSyncQueue();
   await fetchRemoteTrades();
 });
 
 window.addEventListener('offline', () => {
   if (!isRemoteEnabled()) return;
-  updateSyncStatus('failed', 'Sync: Offline');
+  updateSyncStatus('failed', `Sync: Offline • ${queueSize()} pending`);
 });
-fetchRemoteTrades();
+
+initializeRemoteSync();

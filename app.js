@@ -463,10 +463,10 @@ function showDetail(trade) {
           <th>RSI</th>
           <th>MACD</th>
           <th>Structure</th>
-          <th>Support/Resistance</th>
+          <th>S/R</th>
           <th>Liquidity</th>
           <th>Volume</th>
-          <th>Total checklist score</th>
+          <th>Score</th>
           <th>Setup rating</th>
         </tr>
       </thead>

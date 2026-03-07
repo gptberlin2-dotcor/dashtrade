@@ -491,3 +491,22 @@ dialog {
   width: 100%;
   min-height: 92px;
 }
+
+.confirm-modal-content {
+  width: min(520px, 92vw);
+  margin: 0 auto;
+}
+
+.confirm-body {
+  padding: 1rem;
+}
+
+#confirm-delete-message {
+  margin: 0 0 1rem;
+  color: #f3f4f6;
+  line-height: 1.45;
+}
+
+.confirm-actions {
+  justify-content: flex-end;
+}

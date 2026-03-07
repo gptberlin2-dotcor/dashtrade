@@ -16,6 +16,10 @@ const els = {
   detailModal: document.getElementById('detail-modal'),
   detailContent: document.getElementById('detail-content'),
   closeDetail: document.getElementById('close-detail'),
+  confirmDeleteModal: document.getElementById('confirm-delete-modal'),
+  confirmDeleteMessage: document.getElementById('confirm-delete-message'),
+  confirmDeleteCancel: document.getElementById('confirm-delete-cancel'),
+  confirmDeleteOk: document.getElementById('confirm-delete-ok'),
   currency: document.getElementById('currency'),
   calcBalance: document.getElementById('calc-balance'),
   calcLeverage: document.getElementById('calc-leverage'),
@@ -29,6 +33,10 @@ const els = {
   screenshotPreview: document.getElementById('screenshot-preview'),
   screenshotDropzone: document.getElementById('screenshot-dropzone'),
   uploadFileChip: document.getElementById('upload-file-chip'),
+};
+
+const uiState = {
+  pendingDeleteId: null,
 };
 
 function loadTrades() {
@@ -718,11 +726,11 @@ els.journalBody.addEventListener('click', (event) => {
     if (action === 'detail') showDetail(trade);
   if (action === 'edit') fillForm(trade);
   if (action === 'delete') {
-    const allowDelete = window.confirm(`Delete trade #${trade.no} (${trade.pair || '-'})?`);
-    if (!allowDelete) return;
-    state.trades = state.trades.filter((t) => t.id !== id);
-    saveTrades();
-    renderAll();
+    uiState.pendingDeleteId = id;
+    if (els.confirmDeleteMessage) {
+      els.confirmDeleteMessage.textContent = `Delete trade #${trade.no} (${trade.pair || '-'})? This action cannot be undone.`;
+    }
+    els.confirmDeleteModal?.showModal();
   }
 });
 
@@ -747,6 +755,34 @@ els.detailModal.addEventListener('click', (event) => {
   const rect = els.detailModal.getBoundingClientRect();
   const inside = rect.top <= event.clientY && event.clientY <= rect.bottom && rect.left <= event.clientX && event.clientX <= rect.right;
   if (!inside) els.detailModal.close();
+});
+
+els.confirmDeleteCancel?.addEventListener('click', () => {
+  uiState.pendingDeleteId = null;
+  els.confirmDeleteModal?.close();
+});
+
+els.confirmDeleteOk?.addEventListener('click', () => {
+  if (!uiState.pendingDeleteId) {
+    els.confirmDeleteModal?.close();
+    return;
+  }
+
+  state.trades = state.trades.filter((t) => t.id !== uiState.pendingDeleteId);
+  uiState.pendingDeleteId = null;
+  saveTrades();
+  renderAll();
+  els.confirmDeleteModal?.close();
+});
+
+els.confirmDeleteModal?.addEventListener('click', (event) => {
+  const rect = els.confirmDeleteModal.getBoundingClientRect();
+  const inside = rect.top <= event.clientY && event.clientY <= rect.bottom
+    && rect.left <= event.clientX && event.clientX <= rect.right;
+  if (!inside) {
+    uiState.pendingDeleteId = null;
+    els.confirmDeleteModal.close();
+  }
 });
 
 [els.currency, els.calcBalance, els.calcLeverage, els.calcSl, els.calcTp]

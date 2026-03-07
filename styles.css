@@ -393,14 +393,30 @@ dialog {
   margin-bottom: .9rem;
 }
 
-#detail-content .detail-horizontal-table table {
-  min-width: max-content;
-  width: auto;
+#detail-content .psychology-table table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
 }
 
-#detail-content .detail-horizontal-table th,
-#detail-content .detail-horizontal-table td {
-  white-space: nowrap;
+#detail-content .psychology-table th,
+#detail-content .psychology-table td {
   text-align: center;
-  min-width: 120px;
+  white-space: normal;
+}
+
+#detail-content .checklist-table table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+#detail-content .checklist-table th,
+#detail-content .checklist-table td {
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-size: .8rem;
+  line-height: 1.25;
 }

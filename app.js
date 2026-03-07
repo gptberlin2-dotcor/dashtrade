@@ -40,12 +40,21 @@ const uiState = {
 };
 
 const CLOUD_API_BASE = (window.DASHTRADE_API_URL || localStorage.getItem('dashtrade.apiBase') || '').trim();
+const CLOUD_API_TOKEN = (window.DASHTRADE_API_TOKEN || localStorage.getItem('dashtrade.apiToken') || '').trim();
+const CLOUD_USER_ID = (window.DASHTRADE_USER_ID || localStorage.getItem('dashtrade.userId') || 'default').trim();
 let remoteSyncTimer = null;
+
+function remoteHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  if (CLOUD_API_TOKEN) headers.Authorization = `Bearer ${CLOUD_API_TOKEN}`;
+  if (CLOUD_USER_ID) headers['X-User-Id'] = CLOUD_USER_ID;
+  return headers;
+}
 
 async function fetchRemoteTrades() {
   if (!CLOUD_API_BASE) return;
   try {
-    const response = await fetch(`${CLOUD_API_BASE}/api/trades`);
+    const response = await fetch(`${CLOUD_API_BASE}/api/trades`, { headers: remoteHeaders() });
     if (!response.ok) throw new Error(`Remote load failed: ${response.status}`);
     const data = await response.json();
     if (!Array.isArray(data)) return;
@@ -62,7 +71,7 @@ async function syncRemoteTrades() {
   try {
     await fetch(`${CLOUD_API_BASE}/api/trades/sync`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: remoteHeaders(),
       body: JSON.stringify({ trades: state.trades }),
     });
   } catch (error) {

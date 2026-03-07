@@ -253,16 +253,13 @@ function renderJournal() {
       <td>${trade.date || ''}</td>
       <td>${trade.pair || ''}</td>
       <td class="action-cell ${trade.action === 'Long' || trade.action === 'Buy' ? 'action-long' : trade.action === 'Short' || trade.action === 'Sell' ? 'action-short' : ''}">${trade.action || ''}</td>
-      <td>${trade.tf || ''}</td>
-      <td>${trade.setupType || ''}</td>
-      <td>${trade.marketContext || ''}</td>
       <td>${trade.entry ?? ''}</td>
       <td>${trade.sl ?? ''}</td>
       <td>${trade.tp ?? ''}</td>
       <td>${formatRr(trade.rr)}</td>
       <td>${trade.leverage ?? ''}</td>
-      <td><input type="text" class="journal-roi-input" data-id="${trade.id}" value="${trade.roi || ''}" placeholder="contoh: 5% / -2%" /></td>
-      <td><input type="number" step="0.01" class="journal-pnl-input" data-id="${trade.id}" value="${trade.pnl == null || trade.pnl === '' ? '' : String(trade.pnl)}" placeholder="isi saat close" /></td>
+      <td><input type="text" class="journal-roi-input" data-id="${trade.id}" value="${trade.roi || ''}" placeholder="5%/-2%" /></td>
+      <td><input type="number" step="0.01" class="journal-pnl-input" data-id="${trade.id}" value="${trade.pnl == null || trade.pnl === '' ? '' : String(trade.pnl)}" placeholder="close" /></td>
       <td>
         <select class="journal-winloss-select" data-id="${trade.id}">
           <option value="ON GOING" ${trade.winLoss === 'ON GOING' || !trade.winLoss ? 'selected' : ''}>ON GOING</option>
@@ -283,7 +280,7 @@ function renderJournal() {
 
   els.journalBody.innerHTML = rows.length
     ? rows.join('')
-    : '<tr><td colspan="16" class="muted">No trades saved yet.</td></tr>';
+    : '<tr><td colspan="13" class="muted">No trades saved yet.</td></tr>';
 }
 
 function renderAll() {

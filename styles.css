@@ -463,3 +463,14 @@ dialog {
 .icon-btn.danger:hover {
   background: #3b1111;
 }
+
+.journal-roi-input,
+.journal-pnl-input {
+  width: 96px;
+  min-width: 96px;
+}
+
+.journal-winloss-select {
+  width: 120px;
+  min-width: 120px;
+}

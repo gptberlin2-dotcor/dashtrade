@@ -432,6 +432,28 @@ function fillForm(trade) {
   switchSection('start-trade');
 }
 
+
+function updateTradeNotes(tradeId, notesValue) {
+  const notes = String(notesValue || '').trim();
+  let updatedTrade = null;
+
+  state.trades = state.trades.map((trade) => {
+    if (trade.id !== tradeId) return trade;
+    updatedTrade = {
+      ...trade,
+      notes,
+      updatedAt: new Date().toISOString(),
+    };
+    return updatedTrade;
+  });
+
+  if (!updatedTrade) return;
+
+  saveTrades();
+  renderAll();
+  showDetail(updatedTrade);
+}
+
 function showDetail(trade) {
   const c = trade.checklist || {};
   const screenshotSrc = normalizeScreenshotSrc(trade.screenshot);
@@ -442,7 +464,7 @@ function showDetail(trade) {
       ${[
         ['No', trade.no], ['Date', trade.date], ['Pair', trade.pair], ['Action', trade.action], ['TF', trade.tf], ['Setup Type', trade.setupType],
         ['Market Context', trade.marketContext], ['Entry', trade.entry], ['SL', trade.sl], ['TP', trade.tp],
-        ['Result', trade.result], ['ROI', trade.roi || '-'], ['P/L', trade.pnl == null || trade.pnl === '' ? '-' : formatCurrency(safeNumber(trade.pnl))], ['Win/Loss', trade.winLoss], ['Leverage', trade.leverage || '-'], ['RR', formatRr(trade.rr) || '-'], ['Screenshot', screenshotSrc ? 'Shown above' : '-'], ['Notes', escapeHtml(trade.notes || '-')],
+        ['Result', trade.result], ['ROI', trade.roi || '-'], ['P/L', trade.pnl == null || trade.pnl === '' ? '-' : formatCurrency(safeNumber(trade.pnl))], ['Win/Loss', trade.winLoss], ['Leverage', trade.leverage || '-'], ['RR', formatRr(trade.rr) || '-'], ['Screenshot', screenshotSrc ? 'Shown above' : '-'],
       ].map(([k, v]) => `<tr><th>${k}</th><td>${v ?? '-'}</td></tr>`).join('')}
     </tbody></table></div>
 
@@ -491,6 +513,16 @@ function showDetail(trade) {
         </tr>
       </tbody>
     </table></div>
+
+    <div class="detail-notes-editor">
+      <h4>Notes</h4>
+      <label>
+        <textarea class="detail-notes-input" data-id="${trade.id}" rows="4" placeholder="Tambah catatan trade...">${escapeHtml(trade.notes || '')}</textarea>
+      </label>
+      <div class="form-actions">
+        <button type="button" class="primary" data-action="save-notes" data-id="${trade.id}">Save Notes</button>
+      </div>
+    </div>
   `;
   els.detailModal.showModal();
 }
@@ -686,10 +718,28 @@ els.journalBody.addEventListener('click', (event) => {
     if (action === 'detail') showDetail(trade);
   if (action === 'edit') fillForm(trade);
   if (action === 'delete') {
+    const allowDelete = window.confirm(`Delete trade #${trade.no} (${trade.pair || '-'})?`);
+    if (!allowDelete) return;
     state.trades = state.trades.filter((t) => t.id !== id);
     saveTrades();
     renderAll();
   }
+});
+
+els.detailContent.addEventListener('click', (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+
+  const actionEl = target.closest('[data-action="save-notes"]');
+  if (!(actionEl instanceof HTMLElement)) return;
+
+  const tradeId = actionEl.dataset.id;
+  if (!tradeId) return;
+
+  const textarea = els.detailContent.querySelector(`.detail-notes-input[data-id="${tradeId}"]`);
+  if (!(textarea instanceof HTMLTextAreaElement)) return;
+
+  updateTradeNotes(tradeId, textarea.value);
 });
 
 els.closeDetail.addEventListener('click', () => els.detailModal.close());

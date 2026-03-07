@@ -474,3 +474,20 @@ dialog {
   width: 120px;
   min-width: 120px;
 }
+
+.detail-notes-editor {
+  margin-top: .75rem;
+  border: 1px solid #2f2f2f;
+  border-radius: .7rem;
+  padding: .8rem;
+  background: #0f0f0f;
+}
+
+.detail-notes-editor h4 {
+  margin: 0 0 .5rem;
+}
+
+.detail-notes-input {
+  width: 100%;
+  min-height: 92px;
+}

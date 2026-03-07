@@ -33,12 +33,15 @@
         <h1>DashTrade</h1>
         <p>Trading Journal Workspace</p>
       </div>
-      <nav class="nav" aria-label="Main Navigation">
-        <button class="nav-btn active" data-section="dashboard">Dashboard</button>
-        <button class="nav-btn" data-section="start-trade">Start Trade</button>
-        <button class="nav-btn" data-section="trade-journal">Trade Journal</button>
-        <button class="nav-btn" data-section="tools">Tools</button>
-      </nav>
+      <div class="topbar-right">
+        <nav class="nav" aria-label="Main Navigation">
+          <button class="nav-btn active" data-section="dashboard">Dashboard</button>
+          <button class="nav-btn" data-section="start-trade">Start Trade</button>
+          <button class="nav-btn" data-section="trade-journal">Trade Journal</button>
+          <button class="nav-btn" data-section="tools">Tools</button>
+        </nav>
+        <div id="sync-status" class="sync-pill local" aria-live="polite">Sync: Local only</div>
+      </div>
     </header>
 
     <main class="container">

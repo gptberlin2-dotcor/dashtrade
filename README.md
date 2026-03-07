@@ -1,39 +1,46 @@
 # DashTrade
 
-Trading Journal Dashboard frontend app (vanilla HTML/CSS/JS) with 4 sections:
+Trading journal dashboard (vanilla HTML/CSS/JS) with Dashboard, Start Trade, Trade Journal, and Tools.
 
-- Dashboard
-- Start Trade
-- Trade Journal
-- Tools
-
-## Run
-
-Open `index.html` directly in a browser, or run a static server:
+## Run frontend only (localStorage)
 
 ```bash
 python3 -m http.server 4173
 ```
 
-Then open `http://localhost:4173`.
+Open `http://localhost:4173`.
 
-## Database planning (execution docs)
+## Cloud database sync (akses dari mana saja)
 
-Database design and migration artifacts are available in:
+App sekarang bisa sync ke API + PostgreSQL agar data trade & upload gambar tetap ada lintas device.
 
-- `docs/database/schema.sql` (PostgreSQL schema)
-- `docs/database/api-contract.md` (API payload/endpoint draft)
-- `docs/database/migration-plan.md` (localStorage to DB migration steps)
+### 1) Siapkan database PostgreSQL
 
-## Recent revisions
+Jalankan schema runtime:
 
-- Action values now use `Long` and `Short` (instead of Buy/Sell).
-- Trade Journal action column is color-coded:
-  - `Long` = green
-  - `Short` = red
-- Theme is configured as black chart-style background with geometric grid accents.
+```bash
+psql "$DATABASE_URL" -f docs/database/runtime-schema.sql
+```
 
+### 2) Jalankan API server
 
-## Contribution note
+```bash
+npm install
+DATABASE_URL='postgres://user:pass@host:5432/dbname' npm start
+```
 
-Changes are delivered through fresh PRs when previous PR threads were updated outside Codex.
+Server jalan di `http://localhost:8787`.
+
+### 3) Hubungkan frontend ke API
+
+Set global URL sebelum `app.js` atau lewat console/browser storage:
+
+```js
+localStorage.setItem('dashtrade.apiBase', 'https://your-api-domain.com');
+```
+
+Lalu refresh halaman. App akan:
+- load data dari `GET /api/trades`
+- autosync saat data berubah ke `POST /api/trades/sync`
+
+> Catatan: screenshot yang diupload tetap tersimpan karena ikut terserialisasi di payload trade.

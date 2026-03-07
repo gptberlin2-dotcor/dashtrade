@@ -39,6 +39,46 @@ const uiState = {
   pendingDeleteId: null,
 };
 
+const CLOUD_API_BASE = (window.DASHTRADE_API_URL || localStorage.getItem('dashtrade.apiBase') || '').trim();
+let remoteSyncTimer = null;
+
+async function fetchRemoteTrades() {
+  if (!CLOUD_API_BASE) return;
+  try {
+    const response = await fetch(`${CLOUD_API_BASE}/api/trades`);
+    if (!response.ok) throw new Error(`Remote load failed: ${response.status}`);
+    const data = await response.json();
+    if (!Array.isArray(data)) return;
+    state.trades = data;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.trades));
+    renderAll();
+  } catch (error) {
+    console.warn('[dashtrade] remote fetch skipped:', error.message);
+  }
+}
+
+async function syncRemoteTrades() {
+  if (!CLOUD_API_BASE) return;
+  try {
+    await fetch(`${CLOUD_API_BASE}/api/trades/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trades: state.trades }),
+    });
+  } catch (error) {
+    console.warn('[dashtrade] remote sync failed:', error.message);
+  }
+}
+
+function scheduleRemoteSync() {
+  if (!CLOUD_API_BASE) return;
+  if (remoteSyncTimer) window.clearTimeout(remoteSyncTimer);
+  remoteSyncTimer = window.setTimeout(() => {
+    remoteSyncTimer = null;
+    syncRemoteTrades();
+  }, 350);
+}
+
 function loadTrades() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return [];
@@ -52,6 +92,7 @@ function loadTrades() {
 
 function saveTrades() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.trades));
+  scheduleRemoteSync();
 }
 
 function nextNo() {
@@ -808,3 +849,4 @@ setScreenshotPreview(els.form.elements.screenshot?.value || '');
 setUploadFileChip('');
 updateChecklistPreview();
 runCalculator();
+fetchRemoteTrades();

@@ -57,7 +57,7 @@ function statusFromPnl(pnl) {
 }
 
 function checklistMeta(checklist) {
-  const keys = ['rsi', 'macd', 'structure', 'supportResistance', 'liquidity', 'volume'];
+  const keys = ['rsi', 'macd', 'structure', 'supportResistance', 'liquidity', ''];
   const score = keys.reduce((sum, key) => sum + (checklist[key] ? 1 : 0), 0);
   let rating = 'Invalid';
   if (score >= 5) rating = 'Strong setup';
@@ -291,7 +291,7 @@ function toTrade(formData) {
     structure: formData.get('checklist_structure') === 'on',
     supportResistance: formData.get('checklist_supportResistance') === 'on',
     liquidity: formData.get('checklist_liquidity') === 'on',
-    volume: formData.get('checklist_volume') === 'on',
+    : formData.get('checklist_') === 'on',
   };
 
   const { score, rating } = checklistMeta(checklist);
@@ -362,7 +362,7 @@ function updateChecklistPreview() {
     structure: data.get('checklist_structure') === 'on',
     supportResistance: data.get('checklist_supportResistance') === 'on',
     liquidity: data.get('checklist_liquidity') === 'on',
-    volume: data.get('checklist_volume') === 'on',
+    : data.get('checklist_') === 'on',
   };
   const { score, rating } = checklistMeta(checklist);
   els.checklistPreview.textContent = `Checklist Score: ${score}/6 (${rating})`;
@@ -454,7 +454,7 @@ function showDetail(trade) {
           <th>RSI</th>
           <th>MACD</th>
           <th>Structure</th>
-          <th>Support/Resistance</th>
+          <th>S/R</th>
           <th>Liquidity</th>
           <th>Volume</th>
           <th>Total checklist score</th>

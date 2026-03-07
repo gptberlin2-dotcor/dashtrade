@@ -430,7 +430,7 @@ function showDetail(trade) {
     </tbody></table></div>
 
     <h4>Psychology / Execution Review</h4>
-    <div class="table-wrap detail-horizontal-table"><table>
+    <div class="table-wrap detail-horizontal-table psychology-table"><table>
       <thead>
         <tr>
           <th>Emotion</th>
@@ -448,7 +448,7 @@ function showDetail(trade) {
     </table></div>
 
     <h4>Setup Validation Checklist</h4>
-    <div class="table-wrap detail-horizontal-table"><table>
+    <div class="table-wrap detail-horizontal-table checklist-table"><table>
       <thead>
         <tr>
           <th>RSI</th>

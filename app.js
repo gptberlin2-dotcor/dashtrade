@@ -114,6 +114,14 @@ function normalizeLeverage(value) {
   return `x${parsed}`;
 }
 
+function normalizeRoi(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const parsed = safeCalcNumber(raw);
+  if (!Number.isFinite(parsed) || parsed === 0) return raw.includes('0') ? '0%' : '';
+  return `${parsed}%`;
+}
+
 
 function setScreenshotPreview(value) {
   if (!els.screenshotPreview) return;
@@ -253,7 +261,7 @@ function renderJournal() {
       <td>${trade.tp ?? ''}</td>
       <td>${formatRr(trade.rr)}</td>
       <td>${trade.leverage ?? ''}</td>
-      <td>${trade.result || ''}</td>
+      <td><input type="text" class="journal-roi-input" data-id="${trade.id}" value="${trade.roi || ''}" placeholder="contoh: 5% / -2%" /></td>
       <td><input type="number" step="0.01" class="journal-pnl-input" data-id="${trade.id}" value="${trade.pnl == null || trade.pnl === '' ? '' : String(trade.pnl)}" placeholder="isi saat close" /></td>
       <td>
         <select class="journal-winloss-select" data-id="${trade.id}">
@@ -324,6 +332,7 @@ function toTrade(formData) {
   const result = resultInput || existing?.result || 'ON GOING';
 
   const winLoss = existing?.winLoss || 'ON GOING';
+  const roi = existing?.roi || '';
 
   return {
     id: existing?.id || crypto.randomUUID(),
@@ -342,6 +351,7 @@ function toTrade(formData) {
     result,
     pnl,
     winLoss,
+    roi,
     screenshot: normalizeScreenshotSrc(formData.get('screenshot')?.trim()),
     notes: formData.get('notes')?.trim(),
     psychology: {
@@ -435,7 +445,7 @@ function showDetail(trade) {
       ${[
         ['No', trade.no], ['Date', trade.date], ['Pair', trade.pair], ['Action', trade.action], ['TF', trade.tf], ['Setup Type', trade.setupType],
         ['Market Context', trade.marketContext], ['Entry', trade.entry], ['SL', trade.sl], ['TP', trade.tp],
-        ['Result', trade.result], ['P/L', trade.pnl == null || trade.pnl === '' ? '-' : formatCurrency(safeNumber(trade.pnl))], ['Win/Loss', trade.winLoss], ['Leverage', trade.leverage || '-'], ['RR', formatRr(trade.rr) || '-'], ['Screenshot', screenshotSrc ? 'Shown above' : '-'], ['Notes', escapeHtml(trade.notes || '-')],
+        ['Result', trade.result], ['ROI', trade.roi || '-'], ['P/L', trade.pnl == null || trade.pnl === '' ? '-' : formatCurrency(safeNumber(trade.pnl))], ['Win/Loss', trade.winLoss], ['Leverage', trade.leverage || '-'], ['RR', formatRr(trade.rr) || '-'], ['Screenshot', screenshotSrc ? 'Shown above' : '-'], ['Notes', escapeHtml(trade.notes || '-')],
       ].map(([k, v]) => `<tr><th>${k}</th><td>${v ?? '-'}</td></tr>`).join('')}
     </tbody></table></div>
 
@@ -650,10 +660,13 @@ els.journalBody.addEventListener('click', (event) => {
     if (!row) return;
     const pnlInputEl = row.querySelector('.journal-pnl-input');
     const winLossEl = row.querySelector('.journal-winloss-select');
+    const roiInputEl = row.querySelector('.journal-roi-input');
     const pnlRaw = pnlInputEl ? pnlInputEl.value.trim() : '';
     const hasPnl = pnlRaw !== '';
     const nextPnl = hasPnl ? safeNumber(pnlRaw) : null;
     const selectedWinLoss = winLossEl ? winLossEl.value : 'ON GOING';
+    const roiRaw = roiInputEl ? roiInputEl.value.trim() : '';
+    const nextRoi = normalizeRoi(roiRaw);
     const derivedWinLoss = hasPnl ? statusFromPnl(nextPnl) : 'ON GOING';
     const nextWinLoss = selectedWinLoss === 'ON GOING' ? derivedWinLoss : selectedWinLoss;
 
@@ -663,6 +676,7 @@ els.journalBody.addEventListener('click', (event) => {
         ...t,
         pnl: nextPnl,
         winLoss: nextWinLoss,
+        roi: nextRoi,
         result: hasPnl && (!t.result || t.result === 'ON GOING') ? 'CLOSED' : (t.result || 'ON GOING'),
         updatedAt: new Date().toISOString(),
       };

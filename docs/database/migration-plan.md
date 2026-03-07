@@ -23,7 +23,8 @@ Current app stores trades in browser localStorage (`dashtrade.trades.v1`).
    - If screenshot is base64: decode then upload to object storage; save metadata in `trade_images`.
 
 4. **Switch writes to API**
-   - Save/edit/delete now use API endpoints.
+   - Save/edit/delete now use incremental API endpoints (`POST/PUT/DELETE /api/trades`).
+   - Keep `POST /api/trades/sync` as fallback bulk upsert path.
    - localStorage only as temporary cache/offline fallback.
 
 5. **Finalize cutover**

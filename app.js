@@ -42,7 +42,10 @@ const uiState = {
 const CLOUD_API_BASE = (window.DASHTRADE_API_URL || localStorage.getItem('dashtrade.apiBase') || '').trim();
 const CLOUD_API_TOKEN = (window.DASHTRADE_API_TOKEN || localStorage.getItem('dashtrade.apiToken') || '').trim();
 const CLOUD_USER_ID = (window.DASHTRADE_USER_ID || localStorage.getItem('dashtrade.userId') || 'default').trim();
-let remoteSyncTimer = null;
+
+function isRemoteEnabled() {
+  return Boolean(CLOUD_API_BASE && CLOUD_API_TOKEN);
+}
 
 function remoteHeaders() {
   const headers = { 'Content-Type': 'application/json' };
@@ -51,12 +54,31 @@ function remoteHeaders() {
   return headers;
 }
 
+async function remoteRequest(path, options = {}) {
+  if (!isRemoteEnabled()) return null;
+
+  const response = await fetch(`${CLOUD_API_BASE}${path}`, {
+    ...options,
+    headers: {
+      ...remoteHeaders(),
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Remote request failed (${response.status}): ${text || response.statusText}`);
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) return response.json();
+  return null;
+}
+
 async function fetchRemoteTrades() {
-  if (!CLOUD_API_BASE) return;
+  if (!isRemoteEnabled()) return;
   try {
-    const response = await fetch(`${CLOUD_API_BASE}/api/trades`, { headers: remoteHeaders() });
-    if (!response.ok) throw new Error(`Remote load failed: ${response.status}`);
-    const data = await response.json();
+    const data = await remoteRequest('/api/trades');
     if (!Array.isArray(data)) return;
     state.trades = data;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.trades));
@@ -66,26 +88,27 @@ async function fetchRemoteTrades() {
   }
 }
 
-async function syncRemoteTrades() {
-  if (!CLOUD_API_BASE) return;
-  try {
-    await fetch(`${CLOUD_API_BASE}/api/trades/sync`, {
-      method: 'POST',
-      headers: remoteHeaders(),
-      body: JSON.stringify({ trades: state.trades }),
-    });
-  } catch (error) {
-    console.warn('[dashtrade] remote sync failed:', error.message);
-  }
+async function remoteCreateTrade(trade) {
+  if (!isRemoteEnabled()) return;
+  await remoteRequest('/api/trades', {
+    method: 'POST',
+    body: JSON.stringify({ trade }),
+  });
 }
 
-function scheduleRemoteSync() {
-  if (!CLOUD_API_BASE) return;
-  if (remoteSyncTimer) window.clearTimeout(remoteSyncTimer);
-  remoteSyncTimer = window.setTimeout(() => {
-    remoteSyncTimer = null;
-    syncRemoteTrades();
-  }, 350);
+async function remoteUpdateTrade(trade) {
+  if (!isRemoteEnabled()) return;
+  await remoteRequest(`/api/trades/${encodeURIComponent(trade.id)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ trade }),
+  });
+}
+
+async function remoteDeleteTrade(id) {
+  if (!isRemoteEnabled()) return;
+  await remoteRequest(`/api/trades/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
 }
 
 function loadTrades() {
@@ -101,7 +124,6 @@ function loadTrades() {
 
 function saveTrades() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.trades));
-  scheduleRemoteSync();
 }
 
 function nextNo() {
@@ -491,7 +513,7 @@ function fillForm(trade) {
 }
 
 
-function updateTradeNotes(tradeId, notesValue) {
+async function updateTradeNotes(tradeId, notesValue) {
   const notes = String(notesValue || '').trim();
   let updatedTrade = null;
 
@@ -510,6 +532,12 @@ function updateTradeNotes(tradeId, notesValue) {
   saveTrades();
   renderAll();
   showDetail(updatedTrade);
+
+  try {
+    await remoteUpdateTrade(updatedTrade);
+  } catch (error) {
+    console.warn('[dashtrade] notes sync failed:', error.message);
+  }
 }
 
 function showDetail(trade) {
@@ -627,10 +655,11 @@ els.navButtons.forEach((btn) => btn.addEventListener('click', () => {
   switchSection(btn.dataset.section);
 }));
 
-els.form.addEventListener('submit', (event) => {
+els.form.addEventListener('submit', async (event) => {
   event.preventDefault();
+  const isEdit = Boolean(state.editId);
   const trade = toTrade(new FormData(els.form));
-  if (state.editId) {
+  if (isEdit) {
     state.trades = state.trades.map((t) => (t.id === state.editId ? trade : t));
   } else {
     state.trades.push(trade);
@@ -644,6 +673,14 @@ els.form.addEventListener('submit', (event) => {
   if (els.form.elements.rr) els.form.elements.rr.dataset.manual = 'false';
   renderAll();
   updateChecklistPreview();
+
+  try {
+    if (isEdit) await remoteUpdateTrade(trade);
+    else await remoteCreateTrade(trade);
+  } catch (error) {
+    console.warn('[dashtrade] trade save sync failed:', error.message);
+  }
+
   switchSection('trade-journal');
 });
 
@@ -732,7 +769,7 @@ els.screenshotDropzone?.addEventListener('drop', async (event) => {
   await handleScreenshotFile(file);
 });
 
-els.journalBody.addEventListener('click', (event) => {
+els.journalBody.addEventListener('click', async (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return;
   const id = target.dataset.id;
@@ -757,9 +794,10 @@ els.journalBody.addEventListener('click', (event) => {
     const derivedWinLoss = hasPnl ? statusFromPnl(nextPnl) : 'ON GOING';
     const nextWinLoss = selectedWinLoss === 'ON GOING' ? derivedWinLoss : selectedWinLoss;
 
+    let updatedTrade = null;
     state.trades = state.trades.map((t) => {
       if (t.id !== id) return t;
-      return {
+      updatedTrade = {
         ...t,
         pnl: nextPnl,
         winLoss: nextWinLoss,
@@ -767,9 +805,16 @@ els.journalBody.addEventListener('click', (event) => {
         result: hasPnl && (!t.result || t.result === 'ON GOING') ? 'CLOSED' : (t.result || 'ON GOING'),
         updatedAt: new Date().toISOString(),
       };
+      return updatedTrade;
     });
     saveTrades();
     renderAll();
+
+    try {
+      if (updatedTrade) await remoteUpdateTrade(updatedTrade);
+    } catch (error) {
+      console.warn('[dashtrade] close update sync failed:', error.message);
+    }
     return;
   }
 
@@ -784,7 +829,7 @@ els.journalBody.addEventListener('click', (event) => {
   }
 });
 
-els.detailContent.addEventListener('click', (event) => {
+els.detailContent.addEventListener('click', async (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return;
 
@@ -797,7 +842,7 @@ els.detailContent.addEventListener('click', (event) => {
   const textarea = els.detailContent.querySelector(`.detail-notes-input[data-id="${tradeId}"]`);
   if (!(textarea instanceof HTMLTextAreaElement)) return;
 
-  updateTradeNotes(tradeId, textarea.value);
+  await updateTradeNotes(tradeId, textarea.value);
 });
 
 els.closeDetail.addEventListener('click', () => els.detailModal.close());
@@ -812,17 +857,24 @@ els.confirmDeleteCancel?.addEventListener('click', () => {
   els.confirmDeleteModal?.close();
 });
 
-els.confirmDeleteOk?.addEventListener('click', () => {
+els.confirmDeleteOk?.addEventListener('click', async () => {
   if (!uiState.pendingDeleteId) {
     els.confirmDeleteModal?.close();
     return;
   }
 
-  state.trades = state.trades.filter((t) => t.id !== uiState.pendingDeleteId);
+  const deleteId = uiState.pendingDeleteId;
+  state.trades = state.trades.filter((t) => t.id !== deleteId);
   uiState.pendingDeleteId = null;
   saveTrades();
   renderAll();
   els.confirmDeleteModal?.close();
+
+  try {
+    await remoteDeleteTrade(deleteId);
+  } catch (error) {
+    console.warn('[dashtrade] delete sync failed:', error.message);
+  }
 });
 
 els.confirmDeleteModal?.addEventListener('click', (event) => {

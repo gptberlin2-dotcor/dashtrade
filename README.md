@@ -43,7 +43,8 @@ localStorage.setItem('dashtrade.userId', 'my-personal-account');
 
 Lalu refresh halaman. App akan:
 - load data dari `GET /api/trades` (auth Bearer token)
-- autosync upsert saat data berubah ke `POST /api/trades/sync`
+- sync incremental per-trade (`POST/PUT/DELETE /api/trades`)
+- bulk upsert fallback via `POST /api/trades/sync`
 - data dipisahkan per `userId` via header `X-User-Id`
 
 > Catatan: screenshot yang diupload tetap tersimpan karena ikut terserialisasi di payload trade.

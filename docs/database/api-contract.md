@@ -1,112 +1,117 @@
-# DashTrade API Contract (Draft)
+# DashTrade API Contract (Current Runtime)
 
-This contract mirrors the current frontend data shape and enables migrating from localStorage to backend persistence.
+Base path: `/api`
 
-## Base
-- `/api/v1`
+## Authentication
+
+Protected endpoints require headers:
+
+- `Authorization: Bearer <AUTH_TOKEN>`
+- `X-User-Id: <your-user-id>` (optional, defaults to `default`)
+
+## Health
+
+### `GET /health`
+
+Response:
+
+```json
+{ "ok": true }
+```
 
 ## Trades
 
 ### `GET /trades`
-Query params:
-- `limit` (default: 20)
-- `offset` (default: 0)
-- `pair` (optional)
-- `fromDate`, `toDate` (optional)
+
+Returns all trades for the authenticated user.
 
 Response:
+
 ```json
-{
-  "items": [
-    {
-      "id": "uuid",
-      "no": 1,
-      "date": "2026-03-06",
-      "pair": "BTC/USDT",
-      "action": "Buy",
-      "tf": "H1",
-      "setupType": "Breakout",
-      "marketContext": "...",
-      "entry": 100,
-      "sl": 95,
-      "tp": 110,
-      "rr": 2,
-      "leverage": 5,
-      "result": "Hit TP",
-      "pnl": 10,
-      "winLoss": "WIN",
-      "screenshot": "https://...",
-      "notes": "...",
-      "psychology": {
-        "emotion": "Calm",
-        "confidence": 8,
-        "discipline": "Follow plan"
-      },
-      "checklist": {
-        "rsi": true,
-        "macd": true,
-        "structure": true,
-        "supportResistance": true,
-        "liquidity": false,
-        "volume": true,
-        "score": 5,
-        "rating": "Strong setup"
-      },
-      "createdAt": "2026-03-06T10:00:00.000Z",
-      "updatedAt": "2026-03-06T10:00:00.000Z"
-    }
-  ],
-  "total": 1
-}
+[
+  {
+    "id": "uuid",
+    "no": 1,
+    "date": "2026-03-06",
+    "pair": "BTCUSDT"
+  }
+]
 ```
 
 ### `POST /trades`
-Create a trade with nested psychology/checklist payload.
 
-### `PUT /trades/:id`
-Update existing trade.
-
-### `DELETE /trades/:id`
-Delete trade and cascade related checklist/psychology/images.
-
-## Trade Images
-
-### `POST /trades/:id/images/presign`
-Generate presigned upload target.
+Create/upsert one trade.
 
 Request:
+
 ```json
 {
-  "filename": "btc-trade.png",
-  "mimeType": "image/png"
+  "trade": {
+    "id": "uuid",
+    "date": "2026-03-06",
+    "pair": "BTCUSDT"
+  }
 }
 ```
 
 Response:
+
 ```json
-{
-  "uploadUrl": "https://...",
-  "storageKey": "trade-images/<trade-id>/btc-trade.png",
-  "publicUrl": "https://cdn.example.com/trade-images/..."
-}
+{ "ok": true, "id": "uuid" }
 ```
 
-### `POST /trades/:id/images/confirm`
-Persist uploaded image metadata to `trade_images`.
+### `PUT /trades/:id`
+
+Update one trade (id in body must match `:id`).
 
 Request:
+
 ```json
 {
-  "storageProvider": "s3",
-  "storageBucket": "dashtrade-prod",
-  "storageKey": "trade-images/<trade-id>/btc-trade.png",
-  "publicUrl": "https://cdn.example.com/trade-images/...",
-  "mimeType": "image/png",
-  "sizeBytes": 243001
+  "trade": {
+    "id": "uuid",
+    "date": "2026-03-06",
+    "pair": "BTCUSDT"
+  }
 }
 ```
 
-## Migration endpoint
+Response:
 
-### `POST /trades/import-local`
-Bulk-import localStorage data (`dashtrade.trades.v1`) one time.
+```json
+{ "ok": true, "id": "uuid" }
+```
+
+### `DELETE /trades/:id`
+
+Delete one trade by id for current user.
+
+Response:
+
+```json
+{ "ok": true, "id": "uuid" }
+```
+
+### `POST /trades/sync`
+
+Backward-compatible bulk upsert endpoint.
+
+Request:
+
+```json
+{
+  "trades": [
+    {
+      "id": "uuid",
+      "date": "2026-03-06",
+      "pair": "BTCUSDT"
+    }
+  ]
+}
+```
+
+Response:
+
+```json
+{ "ok": true, "count": 1 }
+```

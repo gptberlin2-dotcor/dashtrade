@@ -10,11 +10,30 @@ python3 -m http.server 4173
 
 Open `http://localhost:4173`.
 
-## Cloud database sync (akses dari mana saja)
+## Cloud sync (akses dari mana saja)
 
-App sekarang bisa sync ke API + PostgreSQL agar data trade & upload gambar tetap ada lintas device.
+Agar data trade + file upload tidak hilang saat buka dari device lain, **jangan hanya pakai localStorage**. Jalankan API server dan hubungkan frontend ke API yang sama.
 
-### 1) Siapkan database PostgreSQL
+### 1) Jalankan API server (mode simulasi lokal cepat)
+
+Tidak perlu install dependency tambahan:
+
+```bash
+AUTH_TOKEN='super-secret-token' STORAGE_BACKEND='memory' npm start
+```
+
+Server jalan di `http://localhost:8787`.
+
+> Catatan: mode `memory` hanya untuk simulasi/dev. Data hilang jika server restart.
+
+### 2) Mode produksi (persisten lintas restart/device)
+
+Gunakan salah satu backend persisten di bawah:
+
+- `STORAGE_BACKEND=postgres` (disarankan)
+- `STORAGE_BACKEND=github` (simpan JSON ke repo GitHub)
+
+#### Opsi PostgreSQL
 
 Jalankan schema runtime:
 
@@ -22,14 +41,12 @@ Jalankan schema runtime:
 psql "$DATABASE_URL" -f docs/database/runtime-schema.sql
 ```
 
-### 2) Jalankan API server
+Lalu start server:
 
 ```bash
 npm install
-DATABASE_URL='postgres://user:pass@host:5432/dbname' AUTH_TOKEN='super-secret-token' npm start
+AUTH_TOKEN='super-secret-token' STORAGE_BACKEND='postgres' DATABASE_URL='postgres://user:pass@host:5432/dbname' npm start
 ```
-
-Server jalan di `http://localhost:8787`.
 
 ### 3) Hubungkan frontend ke API
 
@@ -50,12 +67,11 @@ Lalu refresh halaman. App akan:
 > Catatan: screenshot yang diupload tetap tersimpan karena ikut terserialisasi di payload trade.
 
 
-## Opsi storage: simpan ke folder di GitHub repo (tanpa local DB)
+### Opsi storage: simpan ke folder di GitHub repo (tanpa local DB)
 
 Jika Anda ingin data masuk ke folder `storage/` di GitHub repo (bukan PostgreSQL), jalankan API dengan mode `github`.
 
 ```bash
-npm install
 AUTH_TOKEN='super-secret-token' STORAGE_BACKEND='github' GITHUB_STORAGE_TOKEN='ghp_xxx' GITHUB_STORAGE_REPO='username/repo' GITHUB_STORAGE_BRANCH='main' GITHUB_STORAGE_PATH_PREFIX='storage' npm start
 ```
 

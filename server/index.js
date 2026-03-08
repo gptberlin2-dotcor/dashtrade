@@ -1,17 +1,15 @@
-import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-import pg from 'pg';
-
-const { Pool } = pg;
+import { createServer } from 'node:http';
+import { URL } from 'node:url';
 
 const PORT = Number(process.env.PORT || 8787);
-const DATABASE_URL = process.env.DATABASE_URL;
 const AUTH_TOKEN = String(process.env.AUTH_TOKEN || '').trim();
-const STORAGE_BACKEND = String(process.env.STORAGE_BACKEND || 'postgres').trim().toLowerCase();
+const STORAGE_BACKEND = String(process.env.STORAGE_BACKEND || 'memory').trim().toLowerCase();
+
+const DATABASE_URL = process.env.DATABASE_URL;
+const PG_SSL = process.env.PG_SSL;
 
 const GITHUB_TOKEN = String(process.env.GITHUB_STORAGE_TOKEN || '').trim();
-const GITHUB_REPO = String(process.env.GITHUB_STORAGE_REPO || '').trim(); // owner/repo
+const GITHUB_REPO = String(process.env.GITHUB_STORAGE_REPO || '').trim();
 const GITHUB_BRANCH = String(process.env.GITHUB_STORAGE_BRANCH || 'main').trim();
 const GITHUB_PATH_PREFIX = String(process.env.GITHUB_STORAGE_PATH_PREFIX || 'storage').trim();
 
@@ -20,37 +18,30 @@ if (!AUTH_TOKEN) {
   process.exit(1);
 }
 
-if (STORAGE_BACKEND === 'postgres' && !DATABASE_URL) {
-  console.error('Missing DATABASE_URL environment variable for postgres backend.');
-  process.exit(1);
+function sendJson(res, statusCode, data) {
+  const body = JSON.stringify(data);
+  res.writeHead(statusCode, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': Buffer.byteLength(body),
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-User-Id',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  });
+  res.end(body);
 }
 
-if (STORAGE_BACKEND === 'github') {
-  if (!GITHUB_TOKEN || !GITHUB_REPO) {
-    console.error('Missing GITHUB_STORAGE_TOKEN / GITHUB_STORAGE_REPO for github backend.');
-    process.exit(1);
-  }
+async function readJsonBody(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const raw = Buffer.concat(chunks).toString('utf8').trim();
+  if (!raw) return {};
+  return JSON.parse(raw);
 }
 
-const pool = STORAGE_BACKEND === 'postgres'
-  ? new Pool({
-      connectionString: DATABASE_URL,
-      ssl: process.env.PG_SSL === 'false' ? false : { rejectUnauthorized: false },
-    })
-  : null;
-
-const app = express();
-app.use(cors());
-app.use(express.json({ limit: '25mb' }));
-
-function authMiddleware(req, res, next) {
+function auth(req) {
   const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
-  if (!bearer || bearer !== AUTH_TOKEN) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  req.userId = String(req.headers['x-user-id'] || 'default').trim() || 'default';
-  return next();
+  if (!bearer || bearer !== AUTH_TOKEN) return null;
+  return String(req.headers['x-user-id'] || 'default').trim() || 'default';
 }
 
 function validateTradePayload(payload) {
@@ -73,30 +64,8 @@ function upsertInArray(items, trade) {
   return normalizeTrades(next);
 }
 
-async function upsertTradePostgres(client, userId, trade) {
-  await client.query(
-    `INSERT INTO trade_records (user_id, id, payload, created_at, updated_at)
-     VALUES ($1, $2, $3::jsonb, NOW(), NOW())
-     ON CONFLICT (user_id, id)
-     DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
-    [userId, String(trade.id), JSON.stringify(trade)],
-  );
-}
-
-async function getTradesPostgres(userId) {
-  const { rows } = await pool.query(
-    `SELECT payload
-     FROM trade_records
-     WHERE user_id = $1
-     ORDER BY COALESCE((payload->>'no')::int, 0) ASC, updated_at ASC`,
-    [userId],
-  );
-  return rows.map((row) => row.payload);
-}
-
-async function deleteTradePostgres(userId, id) {
-  await pool.query('DELETE FROM trade_records WHERE user_id = $1 AND id = $2', [userId, id]);
-}
+// memory backend (for local simulation / no external dependency)
+const memoryStore = new Map();
 
 function userFilePath(userId) {
   return `${GITHUB_PATH_PREFIX}/${encodeURIComponent(userId)}.json`;
@@ -152,44 +121,107 @@ async function putTradesGithub(userId, trades, sha = null) {
   });
 }
 
+let pgPool = null;
+
+async function ensurePgPool() {
+  if (pgPool) return pgPool;
+  if (!DATABASE_URL) throw new Error('Missing DATABASE_URL environment variable for postgres backend.');
+  const mod = await import('pg').catch(() => null);
+  if (!mod?.default?.Pool && !mod?.Pool) {
+    throw new Error('pg package is not installed. Run npm install in environment with npm registry access.');
+  }
+  const Pool = mod.Pool || mod.default.Pool;
+  pgPool = new Pool({
+    connectionString: DATABASE_URL,
+    ssl: PG_SSL === 'false' ? false : { rejectUnauthorized: false },
+  });
+  return pgPool;
+}
+
 const storage = {
   async getTrades(userId) {
+    if (STORAGE_BACKEND === 'memory') {
+      return normalizeTrades(memoryStore.get(userId) || []);
+    }
+
     if (STORAGE_BACKEND === 'github') {
+      if (!GITHUB_TOKEN || !GITHUB_REPO) {
+        throw new Error('Missing GITHUB_STORAGE_TOKEN / GITHUB_STORAGE_REPO for github backend.');
+      }
       const { trades } = await getTradesGithub(userId);
       return trades;
     }
-    return getTradesPostgres(userId);
+
+    const pool = await ensurePgPool();
+    const { rows } = await pool.query(
+      `SELECT payload
+       FROM trade_records
+       WHERE user_id = $1
+       ORDER BY COALESCE((payload->>'no')::int, 0) ASC, updated_at ASC`,
+      [userId],
+    );
+    return rows.map((row) => row.payload);
   },
 
   async createOrUpdateTrade(userId, trade) {
+    if (STORAGE_BACKEND === 'memory') {
+      memoryStore.set(userId, upsertInArray(memoryStore.get(userId) || [], trade));
+      return;
+    }
+
     if (STORAGE_BACKEND === 'github') {
+      if (!GITHUB_TOKEN || !GITHUB_REPO) {
+        throw new Error('Missing GITHUB_STORAGE_TOKEN / GITHUB_STORAGE_REPO for github backend.');
+      }
       const { trades, sha } = await getTradesGithub(userId);
       const next = upsertInArray(trades, trade);
       await putTradesGithub(userId, next, sha);
       return;
     }
 
-    const client = await pool.connect();
-    try {
-      await upsertTradePostgres(client, userId, trade);
-    } finally {
-      client.release();
-    }
+    const pool = await ensurePgPool();
+    await pool.query(
+      `INSERT INTO trade_records (user_id, id, payload, created_at, updated_at)
+       VALUES ($1, $2, $3::jsonb, NOW(), NOW())
+       ON CONFLICT (user_id, id)
+       DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
+      [userId, String(trade.id), JSON.stringify(trade)],
+    );
   },
 
   async deleteTrade(userId, id) {
+    if (STORAGE_BACKEND === 'memory') {
+      const next = (memoryStore.get(userId) || []).filter((t) => String(t.id) !== String(id));
+      memoryStore.set(userId, next);
+      return;
+    }
+
     if (STORAGE_BACKEND === 'github') {
+      if (!GITHUB_TOKEN || !GITHUB_REPO) {
+        throw new Error('Missing GITHUB_STORAGE_TOKEN / GITHUB_STORAGE_REPO for github backend.');
+      }
       const { trades, sha } = await getTradesGithub(userId);
       const next = trades.filter((t) => String(t.id) !== String(id));
       await putTradesGithub(userId, next, sha);
       return;
     }
 
-    await deleteTradePostgres(userId, id);
+    const pool = await ensurePgPool();
+    await pool.query('DELETE FROM trade_records WHERE user_id = $1 AND id = $2', [userId, id]);
   },
 
   async bulkUpsert(userId, trades) {
+    if (STORAGE_BACKEND === 'memory') {
+      let next = memoryStore.get(userId) || [];
+      for (const trade of trades) next = upsertInArray(next, trade);
+      memoryStore.set(userId, next);
+      return;
+    }
+
     if (STORAGE_BACKEND === 'github') {
+      if (!GITHUB_TOKEN || !GITHUB_REPO) {
+        throw new Error('Missing GITHUB_STORAGE_TOKEN / GITHUB_STORAGE_REPO for github backend.');
+      }
       const { trades: current, sha } = await getTradesGithub(userId);
       let next = current;
       for (const trade of trades) next = upsertInArray(next, trade);
@@ -197,11 +229,18 @@ const storage = {
       return;
     }
 
+    const pool = await ensurePgPool();
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       for (const trade of trades) {
-        await upsertTradePostgres(client, userId, trade);
+        await client.query(
+          `INSERT INTO trade_records (user_id, id, payload, created_at, updated_at)
+           VALUES ($1, $2, $3::jsonb, NOW(), NOW())
+           ON CONFLICT (user_id, id)
+           DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
+          [userId, String(trade.id), JSON.stringify(trade)],
+        );
       }
       await client.query('COMMIT');
     } catch (error) {
@@ -213,84 +252,78 @@ const storage = {
   },
 };
 
-app.get('/api/health', async (_req, res) => {
+const server = createServer(async (req, res) => {
   try {
-    if (STORAGE_BACKEND === 'postgres') await pool.query('SELECT 1');
-    res.json({ ok: true, storageBackend: STORAGE_BACKEND });
+    if (req.method === 'OPTIONS') {
+      return sendJson(res, 200, { ok: true });
+    }
+
+    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    const path = url.pathname;
+
+    if (req.method === 'GET' && path === '/api/health') {
+      if (STORAGE_BACKEND === 'postgres') {
+        const pool = await ensurePgPool();
+        await pool.query('SELECT 1');
+      }
+      return sendJson(res, 200, { ok: true, storageBackend: STORAGE_BACKEND });
+    }
+
+    if (!path.startsWith('/api/')) {
+      return sendJson(res, 404, { error: 'Not found' });
+    }
+
+    const userId = auth(req);
+    if (!userId) return sendJson(res, 401, { error: 'Unauthorized' });
+
+    if (req.method === 'GET' && path === '/api/trades') {
+      const trades = await storage.getTrades(userId);
+      return sendJson(res, 200, trades);
+    }
+
+    if (req.method === 'POST' && path === '/api/trades') {
+      const body = await readJsonBody(req);
+      const trade = body?.trade;
+      const errorMessage = validateTradePayload(trade);
+      if (errorMessage) return sendJson(res, 400, { error: errorMessage });
+      await storage.createOrUpdateTrade(userId, trade);
+      return sendJson(res, 201, { ok: true, id: trade.id });
+    }
+
+    if (req.method === 'PUT' && /^\/api\/trades\/[^/]+$/.test(path)) {
+      const id = decodeURIComponent(path.split('/').pop() || '').trim();
+      const body = await readJsonBody(req);
+      const trade = body?.trade;
+      const errorMessage = validateTradePayload(trade);
+      if (errorMessage) return sendJson(res, 400, { error: errorMessage });
+      if (String(trade.id) !== id) return sendJson(res, 400, { error: 'Trade id mismatch with URL parameter' });
+      await storage.createOrUpdateTrade(userId, trade);
+      return sendJson(res, 200, { ok: true, id: trade.id });
+    }
+
+    if (req.method === 'DELETE' && /^\/api\/trades\/[^/]+$/.test(path)) {
+      const id = decodeURIComponent(path.split('/').pop() || '').trim();
+      if (!id) return sendJson(res, 400, { error: 'Missing trade id' });
+      await storage.deleteTrade(userId, id);
+      return sendJson(res, 200, { ok: true, id });
+    }
+
+    if (req.method === 'POST' && path === '/api/trades/sync') {
+      const body = await readJsonBody(req);
+      const trades = Array.isArray(body?.trades) ? body.trades : null;
+      if (!trades) return sendJson(res, 400, { error: 'Body must include trades array' });
+      const validationError = trades.map((trade) => validateTradePayload(trade)).find(Boolean);
+      if (validationError) return sendJson(res, 400, { error: validationError });
+      await storage.bulkUpsert(userId, trades);
+      return sendJson(res, 200, { ok: true, count: trades.length });
+    }
+
+    return sendJson(res, 404, { error: 'Not found' });
   } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
+    return sendJson(res, 500, { error: 'Server error', detail: error.message });
   }
 });
 
-app.get('/api/trades', authMiddleware, async (req, res) => {
-  try {
-    const trades = await storage.getTrades(req.userId);
-    res.json(trades);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to load trades', detail: error.message });
-  }
-});
-
-app.post('/api/trades', authMiddleware, async (req, res) => {
-  const trade = req.body?.trade;
-  const errorMessage = validateTradePayload(trade);
-  if (errorMessage) return res.status(400).json({ error: errorMessage });
-
-  try {
-    await storage.createOrUpdateTrade(req.userId, trade);
-    return res.status(201).json({ ok: true, id: trade.id });
-  } catch (error) {
-    return res.status(500).json({ error: 'Failed to save trade', detail: error.message });
-  }
-});
-
-app.put('/api/trades/:id', authMiddleware, async (req, res) => {
-  const trade = req.body?.trade;
-  const paramId = String(req.params.id || '').trim();
-  const errorMessage = validateTradePayload(trade);
-  if (errorMessage) return res.status(400).json({ error: errorMessage });
-  if (String(trade.id) !== paramId) return res.status(400).json({ error: 'Trade id mismatch with URL parameter' });
-
-  try {
-    await storage.createOrUpdateTrade(req.userId, trade);
-    return res.json({ ok: true, id: trade.id });
-  } catch (error) {
-    return res.status(500).json({ error: 'Failed to update trade', detail: error.message });
-  }
-});
-
-app.delete('/api/trades/:id', authMiddleware, async (req, res) => {
-  const id = String(req.params.id || '').trim();
-  if (!id) return res.status(400).json({ error: 'Missing trade id' });
-
-  try {
-    await storage.deleteTrade(req.userId, id);
-    return res.json({ ok: true, id });
-  } catch (error) {
-    return res.status(500).json({ error: 'Failed to delete trade', detail: error.message });
-  }
-});
-
-// Backward compatibility endpoint for bulk sync/import.
-app.post('/api/trades/sync', authMiddleware, async (req, res) => {
-  const trades = Array.isArray(req.body?.trades) ? req.body.trades : null;
-  if (!trades) {
-    return res.status(400).json({ error: 'Body must include trades array' });
-  }
-
-  const validationError = trades
-    .map((trade) => validateTradePayload(trade))
-    .find((errorMessage) => errorMessage);
-  if (validationError) return res.status(400).json({ error: validationError });
-
-  try {
-    await storage.bulkUpsert(req.userId, trades);
-    return res.json({ ok: true, count: trades.length });
-  } catch (error) {
-    return res.status(500).json({ error: 'Failed to sync trades', detail: error.message });
-  }
-});
-
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`DashTrade API listening on :${PORT} (storage=${STORAGE_BACKEND})`);
 });

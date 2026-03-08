@@ -79,3 +79,54 @@ Setiap user akan disimpan sebagai file JSON:
 - `storage/<userId>.json`
 
 Ini membuat data trade + screenshot payload bisa diakses lintas device selama frontend mengarah ke API yang sama.
+
+
+## Rekomendasi setup pribadi (private, tidak publik)
+
+Agar data input + upload gambar benar-benar tersimpan online dan bisa diakses dari mana saja untuk penggunaan pribadi, pakai arsitektur ini:
+
+- Frontend statis (GitHub Pages / Netlify / Vercel static)
+- API server private (Railway/Render/Fly.io/VPS)
+- Database PostgreSQL terkelola (Neon/Supabase/Render Postgres)
+- Token rahasia unik (wajib)
+
+### Checklist implementasi (praktis)
+
+1. Buat database Postgres online lalu jalankan:
+
+```bash
+psql "$DATABASE_URL" -f docs/database/runtime-schema.sql
+```
+
+2. Deploy API server ini dengan env berikut:
+
+```bash
+AUTH_TOKEN='ganti-dengan-token-random-panjang'
+STORAGE_BACKEND='postgres'
+DATABASE_URL='postgres://user:pass@host:5432/dbname'
+PG_SSL='true'
+```
+
+3. Di browser/device pribadi, set koneksi frontend:
+
+```js
+localStorage.setItem('dashtrade.apiBase', 'https://api-anda.example.com');
+localStorage.setItem('dashtrade.apiToken', 'ganti-dengan-token-random-panjang');
+localStorage.setItem('dashtrade.userId', 'akun-pribadi-saya');
+```
+
+4. Verifikasi dari device kedua:
+   - login browser/device kedua
+   - isi 1 trade + upload screenshot
+   - refresh di device pertama
+   - data harus muncul sama (berarti sync server aktif)
+
+### Hardening minimal (wajib untuk private)
+
+- Jangan commit `AUTH_TOKEN` / `DATABASE_URL` ke repo.
+- Gunakan token panjang (>= 32 chars) dan rotasi berkala.
+- Batasi CORS hanya domain frontend Anda (jangan `*`) bila sudah production.
+- Aktifkan backup database otomatis harian.
+- Monitor endpoint `GET /api/health` dari uptime monitor.
+
+> Penting: mode `memory` hanya simulasi lokal. Untuk data online permanen lintas device, gunakan `postgres` (disarankan) atau `github` backend.
